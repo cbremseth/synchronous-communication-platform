@@ -1,0 +1,46 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: DockerFile
+      args:
+        - APP_ENV=${APP_ENV:-development}
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    container_name: frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    env_file:
+      - .env
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        - APP_ENV=${APP_ENV:-development}
+    container_name: backend
+    ports:
+      - "${BACKEND_PORT:-5001}:5001"
+    volumes:
+      - ./backend:/usr/src/app
+      - /usr/src/app/node_modules
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data: 
