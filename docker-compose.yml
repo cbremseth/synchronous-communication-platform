@@ -9,6 +9,9 @@ services:
     container_name: frontend
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./frontend:/usr/src/app:delegated
+      - frontend_node_modules:/usr/src/app/node_modules
     env_file:
       - .env
     depends_on:
@@ -43,4 +46,5 @@ services:
       - mongo-data:/data/db
 
 volumes:
-  mongo-data: 
+  mongo-data:
+  frontend_node_modules: 

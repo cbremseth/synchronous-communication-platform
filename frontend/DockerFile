@@ -66,8 +66,7 @@ RUN pnpm install --frozen-lockfile
 
 # below is stuff needed for dev
 FROM base AS dev-runner
-WORKDIR /app
+WORKDIR /usr/src/app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# CMD ["tail", "-f", "/dev/null"]
 CMD ["pnpm", "dev"]
