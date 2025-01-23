@@ -1,4 +1,4 @@
-"use client"; // This tells Next.js that this is a Client Component
+"use client";
 
 import { useState } from "react";
 
@@ -9,15 +9,10 @@ export function LoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Simple form validation (you can expand this as needed)
     if (!username || !password) {
       setErrorMessage("Both fields are required.");
       return;
     }
-
-    // Here you would typically send a request to your server for authentication
-    // For now, we'll just log the values
     console.log("Username:", username);
     console.log("Password:", password);
   };
