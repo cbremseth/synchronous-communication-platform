@@ -47,4 +47,4 @@ services:
 
 volumes:
   mongo-data:
-  frontend_node_modules: 
+  frontend_node_modules:
