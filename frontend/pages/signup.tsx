@@ -53,7 +53,7 @@ export default function Signup() {
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
+              className="text-gray-500 mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
               placeholder="Enter your email"
               required
             />
@@ -72,7 +72,7 @@ export default function Signup() {
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
+              className="text-gray-500 mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
               placeholder="Enter your username"
               required
             />
@@ -91,7 +91,7 @@ export default function Signup() {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
+              className="text-gray-500 mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
               placeholder="Enter your password"
               required
             />
@@ -110,7 +110,7 @@ export default function Signup() {
               id="confirmPassword"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
+              className="text-gray-500 mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
               placeholder="Confirm your password"
               required
             />

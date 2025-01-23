@@ -16,7 +16,9 @@ export function ForgotPasswordPage() {
     }
 
     // Simulate sending a password reset link
-    setMessage("A password reset link has been sent to your email address.");
+    setMessage(
+      "We’ll send a reset link to your registered email. If you don’t see it, check your spam folder",
+    );
   };
 
   return (
@@ -47,7 +49,7 @@ export function ForgotPasswordPage() {
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
+              className="text-gray-500 mt-2 px-4 py-2 w-full border border-gray-300 rounded-lg shadow-sm bg-transparent focus:outline-none focus:ring-2 focus:ring-[#6A74CF] focus:border-transparent"
               placeholder="Enter your email"
             />
           </div>
