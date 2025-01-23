@@ -1,31 +1,29 @@
-FROM node:lts-alpine
+# syntax=docker.io/docker/dockerfile:1
 
-# Add build argument with production as default
-ARG APP_ENV=production
-ENV APP_ENV=${APP_ENV}
-
-# Install pnpm
+FROM node:18-alpine AS base
+RUN apk add --no-cache libc6-compat
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-WORKDIR /usr/src/app
+# Install dependencies only when needed
+FROM base AS deps
+WORKDIR /app
 
 # Copy package files
-COPY package.json pnpm-lock.yaml* ./
+COPY ./package.json ./
+COPY ./pnpm-lock.yaml ./
 
-# Install dependencies based on APP_ENV
-RUN if [ "$APP_ENV" = "production" ]; \
-    then pnpm install --prod --frozen-lockfile; \
-    else pnpm install --frozen-lockfile; \
-    fi
+# Install dependencies based on the preferred package manager
+RUN pnpm install --frozen-lockfile
 
+# Development stage
+FROM base AS dev-runner
+WORKDIR /usr/src/app
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
 EXPOSE 5001
 
-RUN chown -R node /usr/src/app
-USER node
+CMD ["pnpm", "dev"]
 
-# Use different commands for dev and prod
-CMD if [ "$APP_ENV" = "production" ]; \
-    then node server.js; \
-    else pnpm dev; \
-    fi
