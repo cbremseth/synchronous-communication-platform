@@ -1,16 +1,18 @@
 import "dotenv/config";
 import express from "express";
 import mongoose from "mongoose";
-import User from "./models/Users";
+import cors from "cors";
+import User from "./models/Users.js";
+import { config } from "dotenv";
+config({ path: "../.env" });
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
 
 mongoose
   .connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
     authSource: "admin",
   })
   .then(() => console.log("Connected to MongoDB"))
@@ -18,11 +20,6 @@ mongoose
 
 app.get("/", (req, res) => {
   res.send("API is running");
-});
-
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
 });
 
 app.post("/api/signup", async (req, res) => {
@@ -35,6 +32,14 @@ app.post("/api/signup", async (req, res) => {
       .status(201)
       .json({ message: "User created successfully", user: newUser });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error });
+    if (error.code === 11000) {
+      // Duplicate key error/ using emails as keys
+      res.status(400).json({ message: "Email already exists", error });
+    } else {
+      res.status(500).json({ message: "Server error", error });
+    }
   }
 });
+
+const PORT = process.env.BACKEND_PORT || 5001;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
