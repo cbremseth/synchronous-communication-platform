@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, type ControllerRenderProps } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -13,6 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { signUpAction, type SignUpFormData } from "../actions/auth";
 
 const formSchema = z.object({
   email: z.string().email(),
@@ -22,7 +23,7 @@ const formSchema = z.object({
 });
 
 export function ProfileForm() {
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<SignUpFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
@@ -32,27 +33,15 @@ export function ProfileForm() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: SignUpFormData) {
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/signup`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(values),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Network response was not ok");
+      const result = await signUpAction(values);
+      if (!result.success) {
+        throw new Error(result.error);
       }
-
-      const data = await response.json();
-      console.log(data);
+      console.log(result.data);
     } catch (error) {
-      console.error("There was a problem with the fetch operation:", error);
+      console.error("Error during signup:", error);
     }
   }
 
@@ -67,7 +56,11 @@ export function ProfileForm() {
           <FormField
             control={form.control}
             name="email"
-            render={({ field }) => (
+            render={({
+              field,
+            }: {
+              field: ControllerRenderProps<SignUpFormData, "email">;
+            }) => (
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
@@ -80,7 +73,11 @@ export function ProfileForm() {
           <FormField
             control={form.control}
             name="username"
-            render={({ field }) => (
+            render={({
+              field,
+            }: {
+              field: ControllerRenderProps<SignUpFormData, "username">;
+            }) => (
               <FormItem>
                 <FormLabel>Username</FormLabel>
                 <FormControl>
@@ -93,7 +90,11 @@ export function ProfileForm() {
           <FormField
             control={form.control}
             name="password"
-            render={({ field }) => (
+            render={({
+              field,
+            }: {
+              field: ControllerRenderProps<SignUpFormData, "password">;
+            }) => (
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
@@ -106,7 +107,11 @@ export function ProfileForm() {
           <FormField
             control={form.control}
             name="confirmPassword"
-            render={({ field }) => (
+            render={({
+              field,
+            }: {
+              field: ControllerRenderProps<SignUpFormData, "confirmPassword">;
+            }) => (
               <FormItem>
                 <FormLabel>Confirm Password</FormLabel>
                 <FormControl>
