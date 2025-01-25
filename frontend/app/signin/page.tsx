@@ -14,56 +14,45 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { signUpAction, type SignUpFormData } from "../actions/auth";
+import { signInAction, type SignInFormData } from "../actions/auth";
 
-// Validation schema
-const signUpFormSchema = z
-  .object({
-    email: z.string().email({ message: "Invalid email address" }),
-    username: z
-      .string()
-      .min(2, { message: "Username must be at least 2 characters" })
-      .max(20, { message: "Username must not exceed 20 characters" }),
-    password: z
-      .string()
-      .min(8, { message: "Password must be at least 8 characters" }),
-    confirmPassword: z
-      .string()
-      .min(8, { message: "Password must be at least 8 characters" }),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    path: ["confirmPassword"],
-    message: "Passwords must match",
-  });
+// Validation schema for login
+const signInFormSchema = z.object({
+  username: z
+    .string()
+    .min(2, { message: "Username must be at least 2 characters" })
+    .max(20, { message: "Username must not exceed 20 characters" }),
+  password: z
+    .string()
+    .min(8, { message: "Password must be at least 8 characters" }),
+});
 
-export function ProfileForm() {
-  const form = useForm<SignUpFormData>({
-    resolver: zodResolver(signUpFormSchema),
+export function LoginForm() {
+  const form = useForm<SignInFormData>({
+    resolver: zodResolver(signInFormSchema),
     defaultValues: {
-      email: "",
       username: "",
       password: "",
-      confirmPassword: "",
     },
   });
 
-  async function onSubmit(values: SignUpFormData) {
+  async function onSubmit(values: SignInFormData) {
     try {
-      const result = await signUpAction(values);
+      const result = await signInAction(values);
       if (!result.success) {
         throw new Error(result.error);
       }
-      console.log("User signed up:", result.data);
+      console.log("User signed in:", result.data);
     } catch (error) {
-      console.error("Error during signup:", error);
+      console.error("Error during sign-in:", error);
     }
   }
 
   // Reusable Input Field Component
   const renderInputField = (
-    name: keyof SignUpFormData,
+    name: keyof SignInFormData,
     label: string,
-    type: string = "text",
+    type: string,
     placeholder: string,
   ) => (
     <FormField
@@ -72,7 +61,7 @@ export function ProfileForm() {
       render={({
         field,
       }: {
-        field: ControllerRenderProps<SignUpFormData, keyof SignUpFormData>;
+        field: ControllerRenderProps<SignInFormData, keyof SignInFormData>;
       }) => (
         <FormItem>
           <FormLabel>{label}</FormLabel>
@@ -95,11 +84,10 @@ export function ProfileForm() {
     <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-200">
       <div className="w-full max-w-md bg-white p-6 rounded-lg shadow-lg space-y-6">
         <h1 className="text-2xl font-bold text-center text-gray-800">
-          Create Your Account
+          Sign In
         </h1>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {renderInputField("email", "Email", "email", "Enter your email")}
             {renderInputField(
               "username",
               "Username",
@@ -112,22 +100,36 @@ export function ProfileForm() {
               "password",
               "Enter your password",
             )}
-            {renderInputField(
-              "confirmPassword",
-              "Confirm Password",
-              "password",
-              "Re-enter your password",
-            )}
 
             <Button type="submit" variant="blue" className="w-full">
-              Sign Up
+              Sign In
             </Button>
           </form>
         </Form>
+
+        <Button
+          type="button"
+          variant="blue"
+          className="w-full"
+          onClick={() =>
+            (window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`)
+          }
+        >
+          Sign in with Google
+        </Button>
+
         <p className="text-center text-sm text-gray-600">
-          Already have an account?{" "}
-          <Link href="/signin" className="text-blue-600 hover:underline">
-            Login
+          Don’t have an account?{" "}
+          <Link href="/signup" className="text-blue-600 hover:underline">
+            Sign up here
+          </Link>
+        </p>
+        <p className="text-center text-sm text-gray-600">
+          <Link
+            href="/forgot-password"
+            className="text-blue-600 hover:underline"
+          >
+            Forgot your password?
           </Link>
         </p>
       </div>
@@ -135,4 +137,4 @@ export function ProfileForm() {
   );
 }
 
-export default ProfileForm;
+export default LoginForm;

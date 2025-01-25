@@ -12,7 +12,7 @@ export default function Home() {
         Welcome to Synchronous Communication App.
       </p>
       <Link
-        href="/login"
+        href="/signin"
         className="text-lg px-6 py-3 bg-blue-500 hover:bg-blue-600 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300 ease-in-out"
       >
         Go to Login Page
