@@ -25,5 +25,8 @@ COPY . .
 
 EXPOSE 5001
 
-CMD ["pnpm", "dev"]
-
+# Use different commands for dev and prod
+CMD if [ "$APP_ENV" = "production" ]; \
+    then node server.js; \
+    else pnpm dev; \
+    fi
