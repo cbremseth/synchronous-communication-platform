@@ -34,9 +34,10 @@ export default function Chat({
   const [user, setUser] = useState<string | undefined>(undefined);
 
   function onClick(message: string) {
-    if (message.trim() === "") return;
-    const newMessage = { message, sender: user, id: crypto.randomUUID() };
-    socket.emit("message", newMessage);
+    if (message.trim() === "") return; // Check if the message is empty
+
+    // TODO: Update this to match the user once we have authentication
+    socket.emit("message", { message, sender: user, _id: crypto.randomUUID() });
     setMessage("");
   }
   useEffect(() => {
@@ -44,28 +45,18 @@ export default function Chat({
     socket.on("connect", () => {
       // Need to update this to match to the user once we have authentication
       setUser(socket.id);
-
-      // Request messages after connection
-      socket.emit("load_messages");
     });
 
     // Message listener for new messages
     socket.on("message", (message) => {
+      console.log(message);
       setMessages((prevMessages) => [...prevMessages, message]);
-    });
-
-    // Separate listener for initial messages load
-    socket.on("initial_messages", (messages) => {
-      setMessages(messages);
-      // Turn this socket off
-      socket.off("initial_messages");
     });
 
     // Cleanup function
     return () => {
       socket.off("connect");
       socket.off("message");
-      socket.off("initial_messages");
     };
   }, []);
 
