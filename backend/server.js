@@ -3,6 +3,7 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import User from "./models/Users.js";
+import Message from "./models/Messages.js";
 import { config } from "dotenv";
 config({ path: "../.env" });
 import { createServer } from "http";
@@ -55,13 +56,31 @@ const io = new Server(httpServer, {
   },
 });
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log(socket.id);
   console.log("a user connected");
 
-  socket.on("message", (message) => {
-    console.log("Received message:", message);
-    io.emit("message", "Hello from server");
+  // Handle message load requests
+  socket.on("load_messages", async () => {
+    try {
+      const lastMessages = await Message.find()
+        .sort({ timestamp: -1 })
+        .limit(10);
+
+      // Send messages to the requesting client only
+      socket.emit("initial_messages", lastMessages.reverse());
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
+  });
+
+  socket.on("message", async (message) => {
+    const newMessage = new Message({
+      message: message.message,
+      sender: message.sender,
+    });
+    io.emit("message", newMessage);
+    await newMessage.save();
   });
 });
 
