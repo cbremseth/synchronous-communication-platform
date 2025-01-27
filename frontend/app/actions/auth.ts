@@ -1,6 +1,12 @@
 "use server";
 
 import { z } from "zod";
+import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import { MongoClient } from "mongodb";
+import { compare } from "bcryptjs";
+
+const client = new MongoClient(process.env.MONGODB_URI);
 
 export type SignUpFormData = z.infer<typeof signUpFormSchema>;
 
@@ -56,3 +62,51 @@ export async function signInAction(values: SignInFormData) {
     return { success: false, error: "Failed to sign in" };
   }
 }
+
+export const { handlers, signIn, signOut, auth } = NextAuth({
+  providers: [
+    Credentials({
+      credentials: {
+        email: { label: "email", type: "text" },
+        password: { label: "password", type: "password" },
+      },
+      async authorize(credentials) {
+        await client.connect();
+        const db = client.db("test");
+        const usersCollection = db.collection("users");
+
+        const user = await usersCollection.findOne({
+          email: credentials.email,
+        });
+        if (!user) {
+          throw new Error("No user found with the given email");
+        }
+
+        const isValid = await compare(credentials.password, user.password);
+        if (!isValid) {
+          throw new Error("Invalid password");
+        }
+
+        return { id: user._id, email: user.email };
+      },
+    }),
+  ],
+  secret: process.env.AUTH_SECRET,
+  session: {
+    strategy: "jwt",
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.id;
+      }
+      return session;
+    },
+  },
+});
