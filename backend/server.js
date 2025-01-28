@@ -5,6 +5,8 @@ import cors from "cors";
 import User from "./models/Users.js";
 import { config } from "dotenv";
 config({ path: "../.env" });
+import { createServer } from "http";
+import { Server } from "socket.io";
 
 const app = express();
 
@@ -13,6 +15,8 @@ app.use(express.json());
 
 mongoose
   .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
     authSource: "admin",
   })
   .then(() => console.log("Connected to MongoDB"))
@@ -42,4 +46,25 @@ app.post("/api/signup", async (req, res) => {
 });
 
 const PORT = process.env.BACKEND_PORT || 5001;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+io.on("connection", async (socket) => {
+  console.log(socket.id);
+  console.log("a user connected");
+
+  socket.on("message", async (message) => {
+    console.log(message);
+    io.emit("message", message);
+  });
+});
+
+httpServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
