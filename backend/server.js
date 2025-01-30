@@ -3,6 +3,7 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import User from "./models/Users.js";
+import Message from "./models/Message.js";
 import { config } from "dotenv";
 config({ path: "../.env" });
 import { createServer } from "http";
@@ -84,10 +85,18 @@ const io = new Server(httpServer, {
 io.on("connection", async (socket) => {
   console.log(socket.id);
   console.log("a user connected");
-
   socket.on("message", async (message) => {
+    const { message: content, sender } = message;
+
     console.log(message);
     io.emit("message", message);
+    // save message to database
+    const newMessage = new Message({
+      content: content,
+      sender: sender,
+      timestamp: new Date(),
+    });
+    await newMessage.save();
   });
 });
 

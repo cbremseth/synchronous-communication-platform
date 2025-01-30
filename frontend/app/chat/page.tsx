@@ -14,7 +14,7 @@ const socket = manager.socket("/");
 
 interface Message {
   _id: string;
-  message: string;
+  content: string;
   sender: string;
   senderName: string;
   timestamp?: string;
@@ -42,7 +42,7 @@ export default function Chat({
 
     // Filter messages that match the query
     const results = messages.filter((msg) =>
-      msg.message.toLowerCase().includes(query.toLowerCase()),
+      msg.content.toLowerCase().includes(query.toLowerCase()),
     );
 
     setSearchResults(results);
