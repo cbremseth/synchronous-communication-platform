@@ -13,12 +13,16 @@
     "@radix-ui/react-avatar": "^1.1.2",
     "@radix-ui/react-label": "^2.1.1",
     "@radix-ui/react-slot": "^1.1.1",
+    "@types/next-auth": "^3.15.0",
+    "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.473.0",
+    "mongoose": "^8.9.5",
     "next": "14.2.16",
-    "react": "^18",
-    "react-dom": "^18",
+    "next-auth": "5.0.0-beta.25",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.2",
     "socket.io-client": "^4.8.1",
     "tailwind-merge": "^2.6.0",
@@ -26,13 +30,14 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
-    "eslint": "^8",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.17.16",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "eslint": "^8.57.1",
     "eslint-config-next": "14.2.16",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3"
   }
 }
