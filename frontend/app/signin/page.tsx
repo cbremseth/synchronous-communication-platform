@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type ControllerRenderProps } from "react-hook-form";
@@ -14,37 +15,50 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { signInAction, type SignInFormData } from "../actions/auth";
+import { signInAction, type SignInFormData } from "@/app/actions/auth";
+import { useState } from "react";
 
 // Validation schema for login
 const signInFormSchema = z.object({
-  username: z
-    .string()
-    .min(2, { message: "Username must be at least 2 characters" })
-    .max(20, { message: "Username must not exceed 20 characters" }),
+  email: z.string().email({ message: "Invalid email address" }),
   password: z
     .string()
     .min(8, { message: "Password must be at least 8 characters" }),
 });
 
 export function LoginForm() {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
   const form = useForm<SignInFormData>({
     resolver: zodResolver(signInFormSchema),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
     },
   });
 
   async function onSubmit(values: SignInFormData) {
     try {
+      setIsLoading(true);
+      setError(null);
+
       const result = await signInAction(values);
+      console.log("Sign in action result:", result);
+
       if (!result.success) {
-        throw new Error(result.error);
+        setError(result.error);
+        return;
       }
-      console.log("User signed in:", result.data);
+
+      // Successful login
+      router.push("/chat");
     } catch (error) {
-      console.error("Error during sign-in:", error);
+      console.error("Sign in error:", error);
+      setError(error instanceof Error ? error.message : "Failed to sign in");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -72,6 +86,7 @@ export function LoginForm() {
               value={field.value || ""}
               onChange={field.onChange}
               onBlur={field.onBlur}
+              disabled={isLoading}
             />
           </FormControl>
           <FormMessage />
@@ -86,14 +101,16 @@ export function LoginForm() {
         <h1 className="text-2xl font-bold text-center text-gray-800">
           Sign In
         </h1>
+
+        {error && (
+          <div className="p-3 rounded bg-red-50 border border-red-200 text-red-600 text-sm">
+            {error}
+          </div>
+        )}
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {renderInputField(
-              "username",
-              "Username",
-              "text",
-              "Enter your username",
-            )}
+            {renderInputField("email", "Email", "email", "Enter your email")}
             {renderInputField(
               "password",
               "Password",
@@ -101,8 +118,13 @@ export function LoginForm() {
               "Enter your password",
             )}
 
-            <Button type="submit" variant="blue" className="w-full">
-              Sign In
+            <Button
+              type="submit"
+              variant="blue"
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
         </Form>
@@ -119,7 +141,7 @@ export function LoginForm() {
         </Button>
 
         <p className="text-center text-sm text-gray-600">
-          Don’t have an account?{" "}
+          Don&apos;t have an account?{" "}
           <Link href="/signup" className="text-blue-600 hover:underline">
             Sign up here
           </Link>

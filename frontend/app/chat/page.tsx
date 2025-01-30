@@ -4,10 +4,10 @@ import { useEffect, useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Manager } from "socket.io-client";
-import { useRouter } from "next/navigation";
 import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
+import { useAuth } from "@/hooks/useAuth";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -16,25 +16,25 @@ interface Message {
   _id: string;
   message: string;
   sender: string;
+  senderName: string;
   timestamp?: string;
 }
 
 interface MessageProps {
   message: string;
   sender: string;
+  senderName: string;
 }
 
-// TODO: Update this to match the user once we have authentication
 export default function Chat({
   roomName = "General Chat",
 }: {
-  roomName: string;
+  roomName?: string;
 }) {
-  const router = useRouter();
+  const { user, isLoading, isAuthenticated } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [user, setUser] = useState<string | undefined>(undefined);
   const [searchResults, setSearchResults] = useState<Message[]>([]);
 
   const handleSearch = (query: string) => {
@@ -45,26 +45,35 @@ export default function Chat({
       msg.message.toLowerCase().includes(query.toLowerCase()),
     );
 
-    setSearchResults(results); // Update search results
+    setSearchResults(results);
   };
 
   function onClick(message: string) {
-    if (message.trim() === "") return; // Check if the message is empty
+    if (!user || message.trim() === "") return;
 
-    // TODO: Update this to match the user once we have authentication
-    socket.emit("message", { message, sender: user, _id: crypto.randomUUID() });
+    socket.emit("message", {
+      message,
+      sender: user.userID,
+      senderName: user.username,
+      _id: crypto.randomUUID(),
+    });
     setMessage("");
   }
+
   useEffect(() => {
+    if (!isAuthenticated || !user) {
+      window.location.href = "/signin";
+      return;
+    }
+
     // Connection listener
     socket.on("connect", () => {
-      // Need to update this to match to the user once we have authentication
-      setUser(socket.id);
+      console.log("Connected to socket with user:", user.username);
     });
 
     // Message listener for new messages
-    socket.on("message", (message) => {
-      console.log(message);
+    socket.on("message", (message: Message) => {
+      console.log("New message:", message);
       setMessages((prevMessages) => [...prevMessages, message]);
     });
 
@@ -73,7 +82,7 @@ export default function Chat({
       socket.off("connect");
       socket.off("message");
     };
-  }, []);
+  }, [user, isAuthenticated]);
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -85,24 +94,42 @@ export default function Chat({
     scrollToBottom();
   }, [messages]);
 
-  const ReceivedMessage = ({ message, sender }: MessageProps) => (
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
+  const ReceivedMessage = ({ message, senderName }: MessageProps) => (
     <div className="flex items-end space-x-2">
       <Avatar className="bg-gray-100 dark:bg-gray-800">
-        <AvatarFallback>{sender?.charAt(0)}</AvatarFallback>
+        <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
       </Avatar>
-      <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-        <p className="text-sm">{message}</p>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-gray-500">{senderName}</span>
+        <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
+          <p className="text-sm">{message}</p>
+        </div>
       </div>
     </div>
   );
 
-  const SentMessage = ({ message, sender }: MessageProps) => (
+  const SentMessage = ({ message, senderName }: MessageProps) => (
     <div className="flex items-end justify-end space-x-2">
-      <div className="p-2 rounded-lg bg-blue-500 text-white">
-        <p className="text-sm">{message}</p>
+      <div className="flex flex-col items-end gap-1">
+        <span className="text-xs text-gray-500">{senderName}</span>
+        <div className="p-2 rounded-lg bg-blue-500 text-white">
+          <p className="text-sm">{message}</p>
+        </div>
       </div>
       <Avatar className="bg-gray-100 dark:bg-gray-800">
-        <AvatarFallback>{sender?.charAt(0)}</AvatarFallback>
+        <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
       </Avatar>
     </div>
   );
@@ -136,7 +163,7 @@ export default function Chat({
       {/* Main Chat Window */}
       <div className="flex-1 flex flex-col">
         {/* Search Bar */}
-        <SearchBar placeholder="Search something..." onSearch={handleSearch} />
+        <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
 
         {/* Search Results */}
         {searchResults.length > 0 && (
@@ -145,7 +172,7 @@ export default function Chat({
             <ul className="list-disc pl-5">
               {searchResults.map((result) => (
                 <li key={result._id} className="text-sm">
-                  {result.sender}
+                  {result.senderName}: {result.message}
                 </li>
               ))}
             </ul>
@@ -154,29 +181,34 @@ export default function Chat({
 
         <header className="flex items-center justify-between px-4 py-2 border-b">
           <h1 className="text-lg font-semibold">{roomName}</h1>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => {
-              router.push("/");
-            }}
-          >
-            Leave Chat
-          </Button>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">
+              Welcome, {user.username}!
+            </span>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => (window.location.href = "/signin")}
+            >
+              Sign Out
+            </Button>
+          </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg) =>
-            msg.sender === user ? (
+            msg.sender === user.userID ? (
               <SentMessage
                 key={msg._id}
                 message={msg.message}
                 sender={msg.sender}
+                senderName={msg.senderName}
               />
             ) : (
               <ReceivedMessage
                 key={msg._id}
                 message={msg.message}
                 sender={msg.sender}
+                senderName={msg.senderName}
               />
             ),
           )}

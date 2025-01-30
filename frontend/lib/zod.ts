@@ -1,11 +1,21 @@
-import { object, string } from "zod";
+import { z } from "zod";
 
-export const signInSchema = object({
-  email: string({ required_error: "Email is required" })
-    .min(1, "Email is required")
-    .email("Invalid email"),
-  password: string({ required_error: "Password is required" })
-    .min(1, "Password is required")
-    .min(8, "Password must be more than 8 characters")
-    .max(32, "Password must be less than 32 characters"),
+export const signInSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
+
+export const signUpSchema = z
+  .object({
+    email: z.string().email("Invalid email address"),
+    username: z.string().min(3, "Username must be at least 3 characters"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+
+export type SignInSchema = z.infer<typeof signInSchema>;
+export type SignUpSchema = z.infer<typeof signUpSchema>;
