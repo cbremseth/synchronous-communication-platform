@@ -47,7 +47,7 @@ app.post("/api/signup", async (req, res) => {
 });
 
 // GET /channels - Get list of all channels in database
-router.get("/channels", async (req, res) => {
+app.get("/api/channels", async (req, res) => {
   try {
     const channels = await Channel.find();
     res.status(200).json(channels);
@@ -58,7 +58,7 @@ router.get("/channels", async (req, res) => {
 });
 
 // POST /channels - Create a new channel in the database
-router.post("/channels", async (req, res) => {
+app.post("/api/channels", async (req, res) => {
   try {
     const { name } = req.body;
 
@@ -77,7 +77,7 @@ router.post("/channels", async (req, res) => {
 });
 
 // PATCH /channels/:id - Mark a channel as inactive
-router.patch("/channels/:id", async (req, res) => {
+app.patch("/api/channels/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
