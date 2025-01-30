@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { signUpAction, type SignUpFormData } from "../actions/auth";
+import { signUpAction, type SignUpFormData } from "../actions/signUP";
 
 // Validation schema
 const signUpFormSchema = z
