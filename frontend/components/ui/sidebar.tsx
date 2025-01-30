@@ -20,7 +20,15 @@ type Channel = {
   name: string;
 };
 
-export default function Sidebar() {
+type SidebarProps = {
+  onChannelSelect?: (channel: Channel) => void;
+  selectedChannelId?: string;
+};
+
+export default function Sidebar({
+  onChannelSelect,
+  selectedChannelId,
+}: SidebarProps) {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -122,7 +130,12 @@ export default function Sidebar() {
           ? channels.map((channel) => (
               <Card
                 key={channel._id}
-                className="p-2 cursor-pointer bg-gray-700 hover:bg-gray-600"
+                className={`p-2 cursor-pointer ${
+                  selectedChannelId === channel._id
+                    ? "bg-violet-700 hover:bg-violet-600"
+                    : "bg-gray-700 hover:bg-gray-600"
+                }`}
+                onClick={() => onChannelSelect?.(channel)}
               >
                 {channel.name}
               </Card>

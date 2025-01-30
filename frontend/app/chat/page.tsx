@@ -18,6 +18,12 @@ interface Message {
   sender: string;
   senderName: string;
   timestamp?: string;
+  channel?: string;
+}
+
+interface Channel {
+  _id: string;
+  name: string;
 }
 
 interface MessageProps {
@@ -26,16 +32,13 @@ interface MessageProps {
   senderName: string;
 }
 
-export default function Chat({
-  roomName = "General Chat",
-}: {
-  roomName?: string;
-}) {
+export default function Chat() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
   const handleSearch = (query: string) => {
     console.log("Search query:", query);
@@ -49,16 +52,23 @@ export default function Chat({
   };
 
   function onClick(message: string) {
-    if (!user || message.trim() === "") return;
+    if (!user || message.trim() === "" || !selectedChannel) return;
 
     socket.emit("message", {
       content: message,
       sender: user.userID,
       senderName: user.username,
+      channel: selectedChannel._id,
       _id: crypto.randomUUID(),
     });
     setMessage("");
   }
+
+  const handleChannelSelect = (channel: Channel) => {
+    setSelectedChannel(channel);
+    setMessages([]); // Clear current messages
+    socket.emit("join_channel", channel._id);
+  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -76,27 +86,20 @@ export default function Chat({
     // Connection listener
     socket.on("connect", () => {
       console.log("Connected to socket with user:", user.username);
-      // Request message history when connected
-      socket.emit("get_message_history");
     });
 
     // Add message history listener
     socket.on("message_history", (history: Message[]) => {
       console.log("Received message history:", history);
       setMessages(history);
-      // Turn off message history listener
-      socket.off("message_history");
     });
 
     // Message listener for new messages
     socket.on("message", (message: Message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+      if (message.channel === selectedChannel?._id) {
+        setMessages((prevMessages) => [...prevMessages, message]);
+      }
     });
-
-    // Immediately request message history if already connected
-    if (socket.connected) {
-      socket.emit("get_message_history");
-    }
 
     // Cleanup function
     return () => {
@@ -104,7 +107,7 @@ export default function Chat({
       socket.off("message");
       socket.off("message_history");
     };
-  }, [user, isAuthenticated, isLoading]);
+  }, [user, isAuthenticated, isLoading, selectedChannel?._id]);
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -177,7 +180,10 @@ export default function Chat({
     <div className="flex w-full h-screen overflow-hidden">
       {/* Sidebar */}
       <div className="w-64 h-full bg-gradient-to-t from-violet-500 to-fuchsia-500">
-        <Sidebar />
+        <Sidebar
+          onChannelSelect={handleChannelSelect}
+          selectedChannelId={selectedChannel?._id}
+        />
       </div>
 
       <div className="w-[5px] bg-gray-600"></div>
@@ -204,11 +210,15 @@ export default function Chat({
         </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
-          <h1 className="text-lg font-semibold">{roomName}</h1>
+          <h1 className="text-lg font-semibold">
+            {selectedChannel ? selectedChannel.name : "Select a Channel"}
+          </h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
-              Welcome, {user.username}!
-            </span>
+            {user && (
+              <span className="text-sm text-gray-600">
+                Welcome, {user.username}!
+              </span>
+            )}
             <Button
               variant="destructive"
               size="sm"
@@ -220,22 +230,30 @@ export default function Chat({
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) =>
-            msg.sender === user.userID ? (
-              <SentMessage
-                key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-              />
-            ) : (
-              <ReceivedMessage
-                key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-              />
-            ),
+          {!selectedChannel ? (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              Please select a channel to start chatting
+            </div>
+          ) : (
+            <>
+              {messages.map((msg) =>
+                msg.sender === user?.userID ? (
+                  <SentMessage
+                    key={msg._id}
+                    message={msg.content}
+                    sender={msg.sender}
+                    senderName={msg.senderName}
+                  />
+                ) : (
+                  <ReceivedMessage
+                    key={msg._id}
+                    message={msg.content}
+                    sender={msg.sender}
+                    senderName={msg.senderName}
+                  />
+                ),
+              )}
+            </>
           )}
           <div ref={messagesEndRef} />
         </main>
@@ -243,16 +261,22 @@ export default function Chat({
         <footer className="flex-none flex items-center space-x-2 border-t p-4 bg-white">
           <Input
             className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-4 border-cyan-950"
-            placeholder="Type a message"
+            placeholder={
+              selectedChannel
+                ? "Type a message"
+                : "Select a channel to start chatting"
+            }
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onClick(message)}
+            disabled={!selectedChannel}
           />
           <Button
             className="w-20"
             variant="default"
             size="lg"
             onClick={() => onClick(message)}
+            disabled={!selectedChannel}
           >
             Send
           </Button>
