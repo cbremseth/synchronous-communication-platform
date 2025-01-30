@@ -85,15 +85,27 @@ const io = new Server(httpServer, {
 io.on("connection", async (socket) => {
   console.log(socket.id);
   console.log("a user connected");
+
+  // Add this: Send message history when client connects
+  try {
+    const messageHistory = await Message.find({})
+      .sort({ timestamp: 1 })
+      .limit(100); // Limit to last 100 messages
+    socket.emit("message_history", messageHistory);
+  } catch (error) {
+    console.error("Error fetching message history:", error);
+  }
+
   socket.on("message", async (message) => {
-    const { message: content, sender } = message;
+    const { content, sender, senderName } = message;
 
     console.log(message);
     io.emit("message", message);
     // save message to database
     const newMessage = new Message({
-      content: content,
-      sender: sender,
+      content,
+      sender,
+      senderName,
       timestamp: new Date(),
     });
     await newMessage.save();

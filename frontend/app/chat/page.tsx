@@ -52,7 +52,7 @@ export default function Chat({
     if (!user || message.trim() === "") return;
 
     socket.emit("message", {
-      message,
+      content: message,
       sender: user.userID,
       senderName: user.username,
       _id: crypto.randomUUID(),
@@ -71,6 +71,14 @@ export default function Chat({
       console.log("Connected to socket with user:", user.username);
     });
 
+    // Add message history listener
+    socket.on("message_history", (history: Message[]) => {
+      console.log("Received message history:", history);
+      setMessages(history);
+      // Turn off message history listener
+      socket.off("message_history");
+    });
+
     // Message listener for new messages
     socket.on("message", (message: Message) => {
       console.log("New message:", message);
@@ -81,6 +89,7 @@ export default function Chat({
     return () => {
       socket.off("connect");
       socket.off("message");
+      socket.off("message_history");
     };
   }, [user, isAuthenticated]);
 
@@ -173,7 +182,7 @@ export default function Chat({
               <ul className="list-disc pl-5">
                 {searchResults.map((result) => (
                   <li key={result._id} className="text-sm">
-                    {result.senderName}: {result.message}
+                    {result.senderName}: {result.content}
                   </li>
                 ))}
               </ul>
@@ -202,14 +211,14 @@ export default function Chat({
             msg.sender === user.userID ? (
               <SentMessage
                 key={msg._id}
-                message={msg.message}
+                message={msg.content}
                 sender={msg.sender}
                 senderName={msg.senderName}
               />
             ) : (
               <ReceivedMessage
                 key={msg._id}
-                message={msg.message}
+                message={msg.content}
                 sender={msg.sender}
                 senderName={msg.senderName}
               />
