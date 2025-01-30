@@ -14,7 +14,7 @@ const socket = manager.socket("/");
 
 interface Message {
   _id: string;
-  message: string;
+  content: string;
   sender: string;
   senderName: string;
   timestamp?: string;
@@ -42,7 +42,7 @@ export default function Chat({
 
     // Filter messages that match the query
     const results = messages.filter((msg) =>
-      msg.message.toLowerCase().includes(query.toLowerCase()),
+      msg.content.toLowerCase().includes(query.toLowerCase()),
     );
 
     setSearchResults(results);
@@ -52,7 +52,7 @@ export default function Chat({
     if (!user || message.trim() === "") return;
 
     socket.emit("message", {
-      message,
+      content: message,
       sender: user.userID,
       senderName: user.username,
       _id: crypto.randomUUID(),
@@ -61,28 +61,50 @@ export default function Chat({
   }
 
   useEffect(() => {
-    if (!isAuthenticated || !user) {
+    if (!isLoading && !isAuthenticated) {
       window.location.href = "/signin";
       return;
+    }
+
+    if (!user) return;
+
+    // Ensure socket is connected
+    if (!socket.connected) {
+      socket.connect();
     }
 
     // Connection listener
     socket.on("connect", () => {
       console.log("Connected to socket with user:", user.username);
+      // Request message history when connected
+      socket.emit("get_message_history");
+    });
+
+    // Add message history listener
+    socket.on("message_history", (history: Message[]) => {
+      console.log("Received message history:", history);
+      setMessages(history);
+      // Turn off message history listener
+      socket.off("message_history");
     });
 
     // Message listener for new messages
     socket.on("message", (message: Message) => {
-      console.log("New message:", message);
       setMessages((prevMessages) => [...prevMessages, message]);
     });
+
+    // Immediately request message history if already connected
+    if (socket.connected) {
+      socket.emit("get_message_history");
+    }
 
     // Cleanup function
     return () => {
       socket.off("connect");
       socket.off("message");
+      socket.off("message_history");
     };
-  }, [user, isAuthenticated]);
+  }, [user, isAuthenticated, isLoading]);
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -102,7 +124,7 @@ export default function Chat({
     );
   }
 
-  if (!isAuthenticated || !user) {
+  if (!isLoading && !isAuthenticated) {
     return null;
   }
 
@@ -173,7 +195,7 @@ export default function Chat({
               <ul className="list-disc pl-5">
                 {searchResults.map((result) => (
                   <li key={result._id} className="text-sm">
-                    {result.senderName}: {result.message}
+                    {result.senderName}: {result.content}
                   </li>
                 ))}
               </ul>
@@ -202,14 +224,14 @@ export default function Chat({
             msg.sender === user.userID ? (
               <SentMessage
                 key={msg._id}
-                message={msg.message}
+                message={msg.content}
                 sender={msg.sender}
                 senderName={msg.senderName}
               />
             ) : (
               <ReceivedMessage
                 key={msg._id}
-                message={msg.message}
+                message={msg.content}
                 sender={msg.sender}
                 senderName={msg.senderName}
               />

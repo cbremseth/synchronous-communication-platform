@@ -3,6 +3,7 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import User from "./models/Users.js";
+import Message from "./models/Message.js";
 import { config } from "dotenv";
 config({ path: "../.env" });
 import { createServer } from "http";
@@ -85,9 +86,40 @@ io.on("connection", async (socket) => {
   console.log(socket.id);
   console.log("a user connected");
 
+  socket.on("get_message_history", async () => {
+    try {
+      const messageHistory = await Message.find({})
+        .populate("sender", "username")
+        .sort({ timestamp: 1 })
+        .limit(100);
+
+      const formattedMessages = messageHistory.map((msg) => ({
+        _id: msg._id,
+        content: msg.content,
+        sender: msg.sender._id,
+        senderName: msg.sender.username,
+        timestamp: msg.timestamp,
+      }));
+
+      socket.emit("message_history", formattedMessages);
+    } catch (error) {
+      console.error("Error fetching message history:", error);
+    }
+  });
+
   socket.on("message", async (message) => {
+    const { content, sender, senderName } = message;
+
     console.log(message);
     io.emit("message", message);
+    // save message to database
+    const newMessage = new Message({
+      content,
+      sender,
+      senderName,
+      timestamp: new Date(),
+    });
+    await newMessage.save();
   });
 });
 
