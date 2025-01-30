@@ -3,6 +3,7 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import User from "./models/Users.js";
+import Channel from "./models/Channel.js";
 import Message from "./models/Message.js";
 import { config } from "dotenv";
 config({ path: "../.env" });
@@ -43,6 +44,62 @@ app.post("/api/signup", async (req, res) => {
     } else {
       res.status(500).json({ message: "Server error", error });
     }
+  }
+});
+
+// GET /channels - Get list of all channels in database
+app.get("/api/channels", async (req, res) => {
+  try {
+    const channels = await Channel.find();
+    res.status(200).json(channels);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /channels - Create a new channel in the database
+app.post("/api/channels", async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+
+    const newChannel = new Channel({ name });
+    await newChannel.save();
+
+    res
+      .status(201)
+      .json({ message: "Channel created successfully", channel: newChannel });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PATCH /channels/:id - Mark a channel as inactive
+app.patch("/api/channels/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      id,
+      { active: false },
+      { new: true },
+    );
+
+    if (!updatedChannel) {
+      return res.status(404).json({ error: "Channel not found" });
+    }
+
+    res
+      .status(200)
+      .json({ message: "Channel marked as inactive", channel: updatedChannel });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
