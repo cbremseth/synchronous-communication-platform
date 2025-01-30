@@ -121,6 +121,38 @@ io.on("connection", async (socket) => {
     });
     await newMessage.save();
   });
+
+  socket.on("updateMessage", async ({ messageId, newContent, userId }) => {
+    try {
+      // Find the message and verify ownership
+      const message = await Message.findById(messageId);
+
+      if (!message) {
+        console.error("Message not found");
+        return;
+      }
+
+      if (message.sender.toString() !== userId) {
+        console.error("Unauthorized message update attempt");
+        return;
+      }
+
+      // Update the message
+      message.content = newContent;
+      await message.save();
+
+      // Broadcast the update to all clients
+      io.emit("messageUpdated", {
+        _id: message._id,
+        content: newContent,
+        sender: message.sender,
+        senderName: message.senderName,
+        timestamp: message.timestamp
+      });
+    } catch (error) {
+      console.error("Error updating message:", error);
+    }
+  });
 });
 
 httpServer.listen(PORT, () => {
