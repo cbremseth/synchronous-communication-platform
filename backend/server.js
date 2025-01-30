@@ -86,15 +86,16 @@ io.on("connection", async (socket) => {
   console.log(socket.id);
   console.log("a user connected");
 
-  // Add this: Send message history when client connects
-  try {
-    const messageHistory = await Message.find({})
-      .sort({ timestamp: 1 })
-      .limit(100); // Limit to last 100 messages
-    socket.emit("message_history", messageHistory);
-  } catch (error) {
-    console.error("Error fetching message history:", error);
-  }
+  socket.on("get_message_history", async () => {
+    try {
+      const messageHistory = await Message.find({})
+        .sort({ timestamp: 1 })
+        .limit(100);
+      socket.emit("message_history", messageHistory);
+    } catch (error) {
+      console.error("Error fetching message history:", error);
+    }
+  });
 
   socket.on("message", async (message) => {
     const { content, sender, senderName } = message;

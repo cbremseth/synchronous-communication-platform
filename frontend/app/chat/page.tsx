@@ -61,14 +61,23 @@ export default function Chat({
   }
 
   useEffect(() => {
-    if (!isAuthenticated || !user) {
+    if (!isLoading && !isAuthenticated) {
       window.location.href = "/signin";
       return;
+    }
+
+    if (!user) return;
+
+    // Ensure socket is connected
+    if (!socket.connected) {
+      socket.connect();
     }
 
     // Connection listener
     socket.on("connect", () => {
       console.log("Connected to socket with user:", user.username);
+      // Request message history when connected
+      socket.emit("get_message_history");
     });
 
     // Add message history listener
@@ -85,13 +94,19 @@ export default function Chat({
       setMessages((prevMessages) => [...prevMessages, message]);
     });
 
+    // Immediately request message history if already connected
+    if (socket.connected) {
+      console.log("Socket already connected, requesting message history");
+      socket.emit("get_message_history");
+    }
+
     // Cleanup function
     return () => {
       socket.off("connect");
       socket.off("message");
       socket.off("message_history");
     };
-  }, [user, isAuthenticated]);
+  }, [user, isAuthenticated, isLoading]);
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -111,7 +126,7 @@ export default function Chat({
     );
   }
 
-  if (!isAuthenticated || !user) {
+  if (!isLoading && !isAuthenticated) {
     return null;
   }
 
