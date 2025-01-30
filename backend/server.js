@@ -45,6 +45,32 @@ app.post("/api/signup", async (req, res) => {
   }
 });
 
+app.post("/api/signin", async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    const isValidPassword = await user.comparePassword(password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    res.json({
+      user: {
+        email: user.email,
+        username: user.username,
+        _id: user._id,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
 const PORT = process.env.BACKEND_PORT || 5001;
 
 const httpServer = createServer(app);
