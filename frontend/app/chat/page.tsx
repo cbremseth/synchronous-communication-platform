@@ -90,13 +90,11 @@ export default function Chat({
 
     // Message listener for new messages
     socket.on("message", (message: Message) => {
-      console.log("New message:", message);
       setMessages((prevMessages) => [...prevMessages, message]);
     });
 
     // Immediately request message history if already connected
     if (socket.connected) {
-      console.log("Socket already connected, requesting message history");
       socket.emit("get_message_history");
     }
 

@@ -89,9 +89,19 @@ io.on("connection", async (socket) => {
   socket.on("get_message_history", async () => {
     try {
       const messageHistory = await Message.find({})
+        .populate('sender', 'username')
         .sort({ timestamp: 1 })
         .limit(100);
-      socket.emit("message_history", messageHistory);
+
+      const formattedMessages = messageHistory.map(msg => ({
+        _id: msg._id,
+        content: msg.content,
+        sender: msg.sender._id,
+        senderName: msg.sender.username,
+        timestamp: msg.timestamp
+      }));
+
+      socket.emit("message_history", formattedMessages);
     } catch (error) {
       console.error("Error fetching message history:", error);
     }
