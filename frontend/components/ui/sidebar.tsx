@@ -3,29 +3,70 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "./button";
+import { Input } from "./input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+type Channel = {
+  _id: string;
+  name: string;
+};
 
 export default function Sidebar() {
-  const [channels, setChannels] = useState([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isCreatingChannel, setIsCreatingChannel] = useState(false);
+  const [newChannelName, setNewChannelName] = useState("");
 
+  const fetchChannels = async () => {
+    try {
+      const response = await fetch("http://localhost:5001/api/channels");
+      if (!response.ok) throw new Error("Failed to fetch channels");
+
+      const data: Channel[] = await response.json();
+      setChannels(data);
+    } catch (err) {
+      setError("Error fetching channels");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateChannel = async () => {
+    if (!newChannelName.trim()) return;
+
+    try {
+      const response = await fetch("http://localhost:5001/api/channels", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: newChannelName }),
+      });
+
+      if (!response.ok) throw new Error("Failed to create channel");
+
+      await response.json();
+      setNewChannelName("");
+      setIsCreatingChannel(false);
+      fetchChannels();
+    } catch (err) {
+      setError("Error creating channel");
+      console.error(err);
+    }
+  };
   // Fetch channels from backend
   useEffect(() => {
-    const fetchChannels = async () => {
-      try {
-        const response = await fetch("http://localhost:5001/api/channels");
-        if (!response.ok) throw new Error("Failed to fetch channels");
-
-        const data = await response.json();
-        setChannels(data);
-      } catch (err) {
-        setError("Error fetching channels");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchChannels();
   }, []);
 
@@ -33,7 +74,44 @@ export default function Sidebar() {
     <div className="h-full ring-2 ring-white text-white p-4 mx-4 my-4 flex flex-col rounded-lg">
       <h2 className="text-lg font-bold">Conversations</h2>
 
-      {/* Show loading state */}
+      <Dialog open={isCreatingChannel} onOpenChange={setIsCreatingChannel}>
+        <DialogTrigger asChild>
+          <Button className="bg-violet-900 hover:bg-violet-800">
+            Create Channel
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Channel</DialogTitle>
+            <DialogDescription>
+              Enter a name for your new channel.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              value={newChannelName}
+              onChange={(e) => setNewChannelName(e.target.value)}
+              placeholder="Channel name"
+              className="text-black"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => setIsCreatingChannel(false)}
+              variant="outline"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateChannel}
+              className="bg-violet-900 hover:bg-violet-800"
+            >
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {loading && <p className="text-gray-400 mt-2">Loading channels...</p>}
 
       {/* Show error message if API request fails */}
