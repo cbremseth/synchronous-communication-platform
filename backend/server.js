@@ -70,7 +70,9 @@ app.post("/api/channels", async (req, res) => {
     const newChannel = new Channel({ name });
     await newChannel.save();
 
-    res.status(201).json({ message: "Channel created successfully", channel: newChannel });
+    res
+      .status(201)
+      .json({ message: "Channel created successfully", channel: newChannel });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
@@ -85,14 +87,16 @@ app.patch("/api/channels/:id", async (req, res) => {
     const updatedChannel = await Channel.findByIdAndUpdate(
       id,
       { active: false },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedChannel) {
       return res.status(404).json({ error: "Channel not found" });
     }
 
-    res.status(200).json({ message: "Channel marked as inactive", channel: updatedChannel });
+    res
+      .status(200)
+      .json({ message: "Channel marked as inactive", channel: updatedChannel });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
