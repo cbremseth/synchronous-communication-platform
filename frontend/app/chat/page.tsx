@@ -152,34 +152,36 @@ export default function Chat({
   // );
 
   return (
-    <div className="flex w-full h-full">
+    <div className="flex w-full h-screen overflow-hidden">
       {/* Sidebar */}
-      <div className="max-w-xs h-full bg-gradient-to-t from-violet-500 to-fuchsia-500">
+      <div className="w-64 h-full bg-gradient-to-t from-violet-500 to-fuchsia-500">
         <Sidebar />
       </div>
 
       <div className="w-[5px] bg-gray-600"></div>
 
       {/* Main Chat Window */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Search Bar */}
-        <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
+        <div className="flex-none">
+          <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
 
-        {/* Search Results */}
-        {searchResults.length > 0 && (
-          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-            <h2 className="text-sm font-semibold">Search Results:</h2>
-            <ul className="list-disc pl-5">
-              {searchResults.map((result) => (
-                <li key={result._id} className="text-sm">
-                  {result.senderName}: {result.message}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+          {/* Search Results */}
+          {searchResults.length > 0 && (
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
+              <h2 className="text-sm font-semibold">Search Results:</h2>
+              <ul className="list-disc pl-5">
+                {searchResults.map((result) => (
+                  <li key={result._id} className="text-sm">
+                    {result.senderName}: {result.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
 
-        <header className="flex items-center justify-between px-4 py-2 border-b">
+        <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
           <h1 className="text-lg font-semibold">{roomName}</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">
@@ -194,6 +196,7 @@ export default function Chat({
             </Button>
           </div>
         </header>
+
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg) =>
             msg.sender === user.userID ? (
@@ -214,7 +217,8 @@ export default function Chat({
           )}
           <div ref={messagesEndRef} />
         </main>
-        <footer className="flex items-center space-x-2 border-t p-4">
+
+        <footer className="flex-none flex items-center space-x-2 border-t p-4 bg-white">
           <Input
             className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-4 border-cyan-950"
             placeholder="Type a message"
@@ -234,7 +238,7 @@ export default function Chat({
       </div>
 
       {/* Chat Info Panel */}
-      <div className="">
+      <div className="w-64">
         <ChatInfo />
       </div>
     </div>
