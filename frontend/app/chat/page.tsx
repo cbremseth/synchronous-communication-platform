@@ -59,7 +59,6 @@ export default function Chat({
       content: message,
       sender: user.userID,
       senderName: user.username,
-      _id: crypto.randomUUID(),
     });
     setMessage("");
   }

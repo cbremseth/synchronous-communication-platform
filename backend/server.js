@@ -109,9 +109,6 @@ io.on("connection", async (socket) => {
 
   socket.on("message", async (message) => {
     const { content, sender, senderName } = message;
-
-    console.log(message);
-    io.emit("message", message);
     // save message to database
     const newMessage = new Message({
       content,
@@ -120,6 +117,7 @@ io.on("connection", async (socket) => {
       timestamp: new Date(),
     });
     await newMessage.save();
+    io.emit("message", { ...message, _id: newMessage._id });
   });
 
   socket.on("updateMessage", async ({ messageId, newContent, userId }) => {
