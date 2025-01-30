@@ -143,9 +143,23 @@ io.on("connection", async (socket) => {
   console.log(socket.id);
   console.log("a user connected");
 
-  socket.on("get_message_history", async () => {
+  let currentChannel = null;
+
+  socket.on("join_channel", async (channelId) => {
+    // Leave previous channel if any
+    if (currentChannel) {
+      socket.leave(currentChannel);
+    }
+
     try {
-      const messageHistory = await Message.find({})
+      // Join new channel
+      socket.join(channelId);
+      currentChannel = channelId;
+
+      // Get messages for this channel
+      const messageHistory = await Message.find({
+        channel: new mongoose.Types.ObjectId(channelId),
+      })
         .populate("sender", "username")
         .sort({ timestamp: 1 })
         .limit(100);
@@ -153,9 +167,40 @@ io.on("connection", async (socket) => {
       const formattedMessages = messageHistory.map((msg) => ({
         _id: msg._id,
         content: msg.content,
-        sender: msg.sender._id,
-        senderName: msg.sender.username,
+        sender:
+          msg.sender?._id?.toString() ||
+          msg.sender?.toString() ||
+          "deleted-user",
+        senderName: msg.sender?.username || msg.senderName || "Deleted User",
         timestamp: msg.timestamp,
+        channel: msg.channel.toString(),
+      }));
+
+      socket.emit("message_history", formattedMessages);
+    } catch (error) {
+      console.error("Error fetching channel message history:", error);
+    }
+  });
+
+  socket.on("get_message_history", async (channelId) => {
+    try {
+      const messageHistory = await Message.find({
+        channel: new mongoose.Types.ObjectId(channelId),
+      })
+        .populate("sender", "username")
+        .sort({ timestamp: 1 })
+        .limit(100);
+
+      const formattedMessages = messageHistory.map((msg) => ({
+        _id: msg._id,
+        content: msg.content,
+        sender:
+          msg.sender?._id?.toString() ||
+          msg.sender?.toString() ||
+          "deleted-user",
+        senderName: msg.sender?.username || msg.senderName || "Deleted User",
+        timestamp: msg.timestamp,
+        channel: msg.channel.toString(),
       }));
 
       socket.emit("message_history", formattedMessages);
@@ -165,18 +210,52 @@ io.on("connection", async (socket) => {
   });
 
   socket.on("message", async (message) => {
-    const { content, sender, senderName } = message;
+    const { content, sender, senderName, channel } = message;
 
-    console.log(message);
-    io.emit("message", message);
-    // save message to database
-    const newMessage = new Message({
-      content,
-      sender,
-      senderName,
-      timestamp: new Date(),
-    });
-    await newMessage.save();
+    if (!channel) {
+      console.error("No channel specified for message");
+      return;
+    }
+
+    try {
+      // Create new message with proper ObjectId conversion
+      const newMessage = new Message({
+        content,
+        sender: new mongoose.Types.ObjectId(sender),
+        senderName,
+        channel: new mongoose.Types.ObjectId(channel),
+        timestamp: new Date(),
+      });
+
+      // Save to database first
+      const savedMessage = await newMessage.save();
+
+      // Fetch the complete message with populated sender
+      const populatedMessage = await Message.findById(
+        savedMessage._id,
+      ).populate("sender", "username");
+
+      // Format the message for sending
+      const formattedMessage = {
+        _id: populatedMessage._id,
+        content: populatedMessage.content,
+        sender: populatedMessage.sender?._id || sender,
+        senderName: populatedMessage.sender?.username || senderName,
+        channel: populatedMessage.channel,
+        timestamp: populatedMessage.timestamp,
+      };
+
+      // Emit the formatted message to users in this channel
+      io.to(channel).emit("message", formattedMessage);
+    } catch (error) {
+      console.error("Error saving message:", error);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    if (currentChannel) {
+      socket.leave(currentChannel);
+    }
   });
 });
 
