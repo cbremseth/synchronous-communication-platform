@@ -89,16 +89,16 @@ io.on("connection", async (socket) => {
   socket.on("get_message_history", async () => {
     try {
       const messageHistory = await Message.find({})
-        .populate('sender', 'username')
+        .populate("sender", "username")
         .sort({ timestamp: 1 })
         .limit(100);
 
-      const formattedMessages = messageHistory.map(msg => ({
+      const formattedMessages = messageHistory.map((msg) => ({
         _id: msg._id,
         content: msg.content,
         sender: msg.sender._id,
         senderName: msg.sender.username,
-        timestamp: msg.timestamp
+        timestamp: msg.timestamp,
       }));
 
       socket.emit("message_history", formattedMessages);
@@ -147,7 +147,7 @@ io.on("connection", async (socket) => {
         content: newContent,
         sender: message.sender,
         senderName: message.senderName,
-        timestamp: message.timestamp
+        timestamp: message.timestamp,
       });
     } catch (error) {
       console.error("Error updating message:", error);

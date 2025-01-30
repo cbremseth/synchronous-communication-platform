@@ -115,8 +115,8 @@ export default function Chat({
         prevMessages.map((msg) =>
           msg._id === updatedMessage._id
             ? { ...msg, content: updatedMessage.content }
-            : msg
-        )
+            : msg,
+        ),
       );
     });
 
