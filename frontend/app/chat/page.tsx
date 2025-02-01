@@ -9,6 +9,7 @@ import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
+import NavBar from "../navBar";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -230,13 +231,7 @@ export default function Chat({
             <span className="text-sm text-gray-600">
               Welcome, {user.username}!
             </span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => (window.location.href = "/signin")}
-            >
-              Sign Out
-            </Button>
+            <NavBar />
           </div>
         </header>
 
