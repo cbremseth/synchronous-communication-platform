@@ -25,9 +25,12 @@ const NavBar = () => {
           </NavigationMenuTrigger>
           <NavigationMenuContent>
             <ul className="flex flex-col p-4 space-y-2">
-              <li>
+              <li class="bg-red-500 px-4 px-2 rounded-md">
                 <NavigationMenuLink asChild>
-                  <button onClick={() => signOut({ callbackUrl: "/signin" })}>
+                  <button
+                    className="w-full text-left"
+                    onClick={() => signOut({ callbackUrl: "/signin" })}
+                  >
                     Sign out
                   </button>
                 </NavigationMenuLink>
