@@ -3,44 +3,17 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
-import { Plus, Pencil } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
-import { CreateChannelModal } from "@/components/ui/create-channel-modal";
-import { EditChannelModal } from "@/components/ui/edit-channel-modal";
-
-interface Channel {
-  _id: string;
-  name: string;
-  users: Array<{
-    _id: string;
-    username: string;
-    email: string;
-  }>;
-  isDirectMessage: boolean;
-  createdBy: {
-    _id: string;
-    username: string;
-  };
-}
 
 export default function Sidebar() {
-  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { user } = useAuth();
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
 
   // Fetch channels from backend
   useEffect(() => {
     const fetchChannels = async () => {
-      if (!user?.userID) return;
-
       try {
-        const response = await fetch(
-          `http://localhost:5001/api/channels?userId=${user.userID}`,
-        );
+        const response = await fetch("http://localhost:5001/api/channels");
         if (!response.ok) throw new Error("Failed to fetch channels");
 
         const data = await response.json();
@@ -54,88 +27,11 @@ export default function Sidebar() {
     };
 
     fetchChannels();
-  }, [user]);
-
-  const createNewChannel = async (name: string, users: string[]) => {
-    if (!user?.userID) return;
-
-    try {
-      const response = await fetch("http://localhost:5001/api/channels", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          users: [...users, user.userID],
-          createdBy: user.userID,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to create channel");
-
-      const { channel } = await response.json();
-      setChannels((prev) => [...prev, channel]);
-    } catch (err) {
-      console.error(err);
-      setError("Error creating channel");
-    }
-  };
-
-  const handleChannelClick = (channelId: string) => {
-    window.location.href = `/chat/${channelId}`;
-  };
-
-  const handleUpdateChannel = async (
-    channelId: string,
-    updates: { name: string; users: string[] },
-  ) => {
-    if (!user?.userID) return;
-
-    try {
-      const response = await fetch(
-        `http://localhost:5001/api/channels/${channelId}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(updates),
-        },
-      );
-
-      if (!response.ok) throw new Error("Failed to update channel");
-
-      const { channel } = await response.json();
-      setChannels((prev) =>
-        prev.map((ch) => (ch._id === channelId ? channel : ch)),
-      );
-    } catch (err) {
-      console.error(err);
-      setError("Error updating channel");
-    }
-  };
+  }, []);
 
   return (
-    <div className="h-full ring-2 ring-white text-white p-4 mx-4 my-4 flex flex-col rounded-lg">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold">Conversations</h2>
-        <Button
-          onClick={() => setIsCreateModalOpen(true)}
-          variant="ghost"
-          size="icon"
-          className="text-white hover:bg-gray-700"
-        >
-          <Plus className="h-5 w-5" />
-        </Button>
-      </div>
-
-      <CreateChannelModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onCreate={createNewChannel}
-        currentUser={user}
-      />
+    <div className="h-full ring-2 ring-white text-white mx-4 flex flex-col rounded-lg text-center">
+      <h2 className="text-lg font-bold my-8">Conversations</h2>
 
       {/* Show loading state */}
       {loading && <p className="text-gray-400 mt-2">Loading channels...</p>}
@@ -150,44 +46,11 @@ export default function Sidebar() {
                 key={channel._id}
                 className="p-2 cursor-pointer bg-gray-700 hover:bg-gray-600"
               >
-                <div className="flex justify-between items-start">
-                  <div
-                    className="flex-1"
-                    onClick={() => handleChannelClick(channel._id)}
-                  >
-                    <span>{channel.name}</span>
-                    <span className="text-xs text-gray-400 block">
-                      {channel.users.length} members
-                    </span>
-                  </div>
-                  {channel.createdBy?._id === user?.userID && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-gray-400 hover:text-white"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingChannel(channel);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                {channel.name}
               </Card>
             ))
           : !loading && <p className="text-gray-400">No channels available</p>}
       </div>
-
-      {editingChannel && (
-        <EditChannelModal
-          isOpen={!!editingChannel}
-          onClose={() => setEditingChannel(null)}
-          onSave={handleUpdateChannel}
-          channel={editingChannel}
-          currentUser={user}
-        />
-      )}
 
       <h2 className="text-lg font-bold mt-6">Notifications</h2>
       <ScrollArea className="h-1/2 opacity-50 bg-gray-700 px-2 py-4 hover:bg-violet-900 rounded-md flex-1 overflow-y-auto mt-2 h-32 overflow-auto">

@@ -196,16 +196,16 @@ export default function Chat({
   );
 
   return (
-    <div className="flex w-full h-screen overflow-hidden">
+    <div className="flex w-full h-screen">
       {/* Sidebar */}
-      <div className="w-64 h-full bg-gradient-to-t from-violet-500 to-fuchsia-500">
+      <div className="w-64 h-screen bg-gradient-to-t from-violet-500 to-fuchsia-500">
         <Sidebar />
       </div>
 
       <div className="w-[5px] bg-gray-600"></div>
 
       {/* Main Chat Window */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen">
         {/* Search Bar */}
         <div className="flex-none">
           <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
