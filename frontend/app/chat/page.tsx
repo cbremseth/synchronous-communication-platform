@@ -18,6 +18,7 @@ interface Message {
   sender: string;
   senderName: string;
   timestamp?: string;
+  channelId: string;
 }
 
 interface MessageProps {
@@ -26,10 +27,29 @@ interface MessageProps {
   senderName: string;
 }
 
+interface User {
+  _id: string;
+  username: string;
+  email: string;
+}
+
+interface Channel {
+  _id: string;
+  name: string;
+  users: User[];
+  isDirectMessage: boolean;
+  createdBy: {
+    _id: string;
+    username: string;
+  };
+}
+
 export default function Chat({
   roomName = "General Chat",
+  channelId = "general",
 }: {
   roomName?: string;
+  channelId?: string;
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -55,6 +75,7 @@ export default function Chat({
       content: message,
       sender: user.userID,
       senderName: user.username,
+      channelId: channelId,
       _id: crypto.randomUUID(),
     });
     setMessage("");
@@ -73,30 +94,24 @@ export default function Chat({
       socket.connect();
     }
 
-    // Connection listener
-    socket.on("connect", () => {
-      console.log("Connected to socket with user:", user.username);
-      // Request message history when connected
-      socket.emit("get_message_history");
-    });
+    // Clear messages when switching channels
+    setMessages([]);
+
+    // Join the channel
+    socket.emit("join_channel", channelId);
 
     // Add message history listener
     socket.on("message_history", (history: Message[]) => {
       console.log("Received message history:", history);
       setMessages(history);
-      // Turn off message history listener
-      socket.off("message_history");
     });
 
     // Message listener for new messages
     socket.on("message", (message: Message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+      if (message.channelId === channelId) {
+        setMessages((prevMessages) => [...prevMessages, message]);
+      }
     });
-
-    // Immediately request message history if already connected
-    if (socket.connected) {
-      socket.emit("get_message_history");
-    }
 
     // Cleanup function
     return () => {
@@ -104,7 +119,7 @@ export default function Chat({
       socket.off("message");
       socket.off("message_history");
     };
-  }, [user, isAuthenticated, isLoading]);
+  }, [user, isAuthenticated, isLoading, channelId]);
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -156,22 +171,68 @@ export default function Chat({
     </div>
   );
 
-  // const SearchResult = () => (
-  //   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-  //     <h2 className="text-sm font-semibold mb-2">Search Results:</h2>
-  //     {searchResults.length > 0 ? (
-  //       <ul className="list-none space-y-1">
-  //         {searchResults.map((result) => (
-  //           <li key={result._id} className="text-sm">
-  //             {result.sender}
-  //           </li>
-  //         ))}
-  //       </ul>
-  //     ) : (
-  //       <p className="text-gray-500 text-sm">No results found.</p>
-  //     )}
-  //   </div>
-  // );
+  const ManageUsers = ({ channel, onUpdate }: { channel: Channel; onUpdate: () => void }) => {
+    const [users, setUsers] = useState<User[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    const addUser = async (userId: string) => {
+      try {
+        const response = await fetch(`http://localhost:5001/api/channels/${channel._id}/users`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            users: [...channel.users.map(u => u._id), userId]
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to add user');
+        onUpdate();
+      } catch (error) {
+        console.error('Error adding user:', error);
+      }
+    };
+
+    const removeUser = async (userId: string) => {
+      try {
+        const response = await fetch(`http://localhost:5001/api/channels/${channel._id}/users`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            users: channel.users.filter(u => u._id !== userId).map(u => u._id)
+          }),
+        });
+
+        if (!response.ok) throw new Error('Failed to remove user');
+        onUpdate();
+      } catch (error) {
+        console.error('Error removing user:', error);
+      }
+    };
+
+    return (
+      <div className="p-4">
+        <h3 className="text-lg font-semibold mb-4">Manage Users</h3>
+        <div className="space-y-2">
+          {channel.users.map(user => (
+            <div key={user._id} className="flex justify-between items-center">
+              <span>{user.username}</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => removeUser(user._id)}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="flex w-full h-screen overflow-hidden">

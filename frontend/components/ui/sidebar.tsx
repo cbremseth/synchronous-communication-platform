@@ -3,17 +3,40 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { CreateChannelModal } from "@/components/ui/create-channel-modal";
+
+interface Channel {
+  _id: string;
+  name: string;
+  users: Array<{
+    _id: string;
+    username: string;
+    email: string;
+  }>;
+  isDirectMessage: boolean;
+  createdBy: {
+    _id: string;
+    username: string;
+  };
+}
 
 export default function Sidebar() {
-  const [channels, setChannels] = useState([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { user } = useAuth();
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Fetch channels from backend
   useEffect(() => {
     const fetchChannels = async () => {
+      if (!user?.userID) return;
+      
       try {
-        const response = await fetch("http://localhost:5001/api/channels");
+        const response = await fetch(`http://localhost:5001/api/channels?userId=${user.userID}`);
         if (!response.ok) throw new Error("Failed to fetch channels");
 
         const data = await response.json();
@@ -27,11 +50,58 @@ export default function Sidebar() {
     };
 
     fetchChannels();
-  }, []);
+  }, [user]);
+
+  const createNewChannel = async (name: string, users: string[]) => {
+    if (!user?.userID) return;
+
+    try {
+      const response = await fetch("http://localhost:5001/api/channels", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          users: [...users, user.userID],
+          createdBy: user.userID,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to create channel");
+
+      const { channel } = await response.json();
+      setChannels((prev) => [...prev, channel]);
+    } catch (err) {
+      console.error(err);
+      setError("Error creating channel");
+    }
+  };
+
+  const handleChannelClick = (channelId: string) => {
+    window.location.href = `/chat/${channelId}`;
+  };
 
   return (
     <div className="h-full ring-2 ring-white text-white p-4 mx-4 my-4 flex flex-col rounded-lg">
-      <h2 className="text-lg font-bold">Conversations</h2>
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-bold">Conversations</h2>
+        <Button
+          onClick={() => setIsCreateModalOpen(true)}
+          variant="ghost"
+          size="icon"
+          className="text-white hover:bg-gray-700"
+        >
+          <Plus className="h-5 w-5" />
+        </Button>
+      </div>
+
+      <CreateChannelModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onCreate={createNewChannel}
+        currentUser={user}
+      />
 
       {/* Show loading state */}
       {loading && <p className="text-gray-400 mt-2">Loading channels...</p>}
@@ -45,8 +115,14 @@ export default function Sidebar() {
               <Card
                 key={channel._id}
                 className="p-2 cursor-pointer bg-gray-700 hover:bg-gray-600"
+                onClick={() => handleChannelClick(channel._id)}
               >
-                {channel.name}
+                <div className="flex flex-col">
+                  <span>{channel.name}</span>
+                  <span className="text-xs text-gray-400">
+                    {channel.users.length} members
+                  </span>
+                </div>
               </Card>
             ))
           : !loading && <p className="text-gray-400">No channels available</p>}
