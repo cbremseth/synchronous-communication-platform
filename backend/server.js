@@ -161,7 +161,6 @@ app.get("/api/searchbar", async (req, res) => {
   }
 });
 
-
 const PORT = process.env.BACKEND_PORT || 5001;
 
 const httpServer = createServer(app);

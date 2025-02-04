@@ -27,10 +27,10 @@ interface MessageProps {
   senderName: string;
 }
 
-interface UserResult{
-  id: string,
-  email: string,
-  username: string,
+interface UserResult {
+  id: string;
+  email: string;
+  username: string;
 }
 
 export default function Chat({
@@ -43,33 +43,37 @@ export default function Chat({
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [userSearchResults, setUserSearchResults] = useState<UserResult[]>([]);
-  const [messageSearchResults, setMessageSearchResults] = useState<Message[]>([]);
+  const [messageSearchResults, setMessageSearchResults] = useState<Message[]>(
+    [],
+  );
 
-const handleSearch = async (query: string) => {
-  console.log("Search query:", query);
-  if (!query.trim()) {
-    setUserSearchResults([]);
-    setMessageSearchResults([]);
-    return;
-  }
-
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`);
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch search results");
+  const handleSearch = async (query: string) => {
+    console.log("Search query:", query);
+    if (!query.trim()) {
+      setUserSearchResults([]);
+      setMessageSearchResults([]);
+      return;
     }
-    const data = await response.json();
 
-    // Update state with search results
-    setUserSearchResults(data.users || []);
-    setMessageSearchResults(data.messages || []);
-  } catch (error) {
-    console.error("Error searching:", error);
-    setUserSearchResults([]);
-    setMessageSearchResults([]);
-  }
-};
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch search results");
+      }
+      const data = await response.json();
+
+      // Update state with search results
+      setUserSearchResults(data.users || []);
+      setMessageSearchResults(data.messages || []);
+    } catch (error) {
+      console.error("Error searching:", error);
+      setUserSearchResults([]);
+      setMessageSearchResults([]);
+    }
+  };
 
   function onClick(message: string) {
     if (!user || message.trim() === "") return;
@@ -203,7 +207,10 @@ const handleSearch = async (query: string) => {
                 <ul className="list-disc pl-5">
                   {userSearchResults.map((user) => (
                     <li key={user._id} className="text-sm">
-                      <Link href={`/profile/${user._id}`} className="text-blue-500 hover:underline">
+                      <Link
+                        href={`/profile/${user._id}`}
+                        className="text-blue-500 hover:underline"
+                      >
                         <strong>{user.username}</strong> - {user.email}
                       </Link>
                     </li>
@@ -211,7 +218,7 @@ const handleSearch = async (query: string) => {
                 </ul>
               </div>
             )}
-            </div>
+          </div>
 
           {/* Display Messages if Found */}
           {messageSearchResults.length > 0 && (
@@ -226,8 +233,7 @@ const handleSearch = async (query: string) => {
               </ul>
             </div>
           )}
-      </div>
-
+        </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
           <h1 className="text-lg font-semibold">{roomName}</h1>
