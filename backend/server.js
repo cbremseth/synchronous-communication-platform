@@ -129,6 +129,39 @@ app.post("/api/signin", async (req, res) => {
   }
 });
 
+// endpoint to search for users based on username or email
+app.get("/api/searchbar", async (req, res) => {
+  const { query } = req.query;
+  console.log("Search query:", query);
+
+  try {
+    const regex = new RegExp(query, "i");
+
+    // Find users with matching username or email
+    const users = await User.find({
+      $or: [{ username: regex }, { email: regex }],
+    }).select("_id username email");
+
+    // Find messages containing the query
+    const messages = await Message.find({ content: regex })
+      .populate("sender", "username")
+      .select("_id content sender");
+
+    // Format messages to include sender's username
+    const formattedMessages = messages.map((msg) => ({
+      _id: msg._id,
+      content: msg.content,
+      senderName: msg.sender?.username || "Unknown",
+    }));
+
+    res.json({ users, messages: formattedMessages });
+  } catch (error) {
+    console.error("Error searching:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+
 const PORT = process.env.BACKEND_PORT || 5001;
 
 const httpServer = createServer(app);

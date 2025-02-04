@@ -8,6 +8,7 @@ import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
+import Link from "next/link";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -26,6 +27,12 @@ interface MessageProps {
   senderName: string;
 }
 
+interface UserResult{
+  id: string,
+  email: string,
+  username: string,
+}
+
 export default function Chat({
   roomName = "General Chat",
 }: {
@@ -35,18 +42,34 @@ export default function Chat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [userSearchResults, setUserSearchResults] = useState<UserResult[]>([]);
+  const [messageSearchResults, setMessageSearchResults] = useState<Message[]>([]);
 
-  const handleSearch = (query: string) => {
-    console.log("Search query:", query);
+const handleSearch = async (query: string) => {
+  console.log("Search query:", query);
+  if (!query.trim()) {
+    setUserSearchResults([]);
+    setMessageSearchResults([]);
+    return;
+  }
 
-    // Filter messages that match the query
-    const results = messages.filter((msg) =>
-      msg.content.toLowerCase().includes(query.toLowerCase()),
-    );
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`);
 
-    setSearchResults(results);
-  };
+    if (!response.ok) {
+      throw new Error("Failed to fetch search results");
+    }
+    const data = await response.json();
+
+    // Update state with search results
+    setUserSearchResults(data.users || []);
+    setMessageSearchResults(data.messages || []);
+  } catch (error) {
+    console.error("Error searching:", error);
+    setUserSearchResults([]);
+    setMessageSearchResults([]);
+  }
+};
 
   function onClick(message: string) {
     if (!user || message.trim() === "") return;
@@ -156,23 +179,6 @@ export default function Chat({
     </div>
   );
 
-  // const SearchResult = () => (
-  //   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-  //     <h2 className="text-sm font-semibold mb-2">Search Results:</h2>
-  //     {searchResults.length > 0 ? (
-  //       <ul className="list-none space-y-1">
-  //         {searchResults.map((result) => (
-  //           <li key={result._id} className="text-sm">
-  //             {result.sender}
-  //           </li>
-  //         ))}
-  //       </ul>
-  //     ) : (
-  //       <p className="text-gray-500 text-sm">No results found.</p>
-  //     )}
-  //   </div>
-  // );
-
   return (
     <div className="flex w-full h-screen overflow-hidden">
       {/* Sidebar */}
@@ -189,19 +195,39 @@ export default function Chat({
           <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
 
           {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-              <h2 className="text-sm font-semibold">Search Results:</h2>
-              <ul className="list-disc pl-5">
-                {searchResults.map((result) => (
-                  <li key={result._id} className="text-sm">
-                    {result.senderName}: {result.content}
-                  </li>
-                ))}
-              </ul>
+          <div className="mt-2">
+            {/* Display User Profiles if Found */}
+            {userSearchResults.length > 0 && (
+              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                <h2 className="text-sm font-semibold">Users:</h2>
+                <ul className="list-disc pl-5">
+                  {userSearchResults.map((user) => (
+                    <li key={user._id} className="text-sm">
+                      <Link href={`/profile/${user._id}`} className="text-blue-500 hover:underline">
+                        <strong>{user.username}</strong> - {user.email}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             </div>
-          )}
-        </div>
+
+  {/* Display Messages if Found */}
+  {messageSearchResults.length > 0 && (
+    <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
+      <h2 className="text-sm font-semibold">Messages:</h2>
+      <ul className="list-disc pl-5">
+        {messageSearchResults.map((msg) => (
+          <li key={msg._id} className="text-sm">
+            <strong>{msg.senderName}:</strong> {msg.content}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )}
+</div>
+
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
           <h1 className="text-lg font-semibold">{roomName}</h1>
