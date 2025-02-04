@@ -129,7 +129,7 @@ app.post("/api/signin", async (req, res) => {
   }
 });
 
-// endpoint to search for users based on username or email
+// endpoint to search for users (based on username or email) and messages
 app.get("/api/searchbar", async (req, res) => {
   const { query } = req.query;
   console.log("Search query:", query);
