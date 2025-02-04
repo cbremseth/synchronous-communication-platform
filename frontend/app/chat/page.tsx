@@ -213,20 +213,20 @@ const handleSearch = async (query: string) => {
             )}
             </div>
 
-  {/* Display Messages if Found */}
-  {messageSearchResults.length > 0 && (
-    <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-      <h2 className="text-sm font-semibold">Messages:</h2>
-      <ul className="list-disc pl-5">
-        {messageSearchResults.map((msg) => (
-          <li key={msg._id} className="text-sm">
-            <strong>{msg.senderName}:</strong> {msg.content}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )}
-</div>
+          {/* Display Messages if Found */}
+          {messageSearchResults.length > 0 && (
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
+              <h2 className="text-sm font-semibold">Messages:</h2>
+              <ul className="list-disc pl-5">
+                {messageSearchResults.map((msg) => (
+                  <li key={msg._id} className="text-sm">
+                    <strong>{msg.senderName}:</strong> {msg.content}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+      </div>
 
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
