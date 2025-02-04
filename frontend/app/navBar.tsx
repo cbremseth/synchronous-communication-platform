@@ -36,8 +36,8 @@ const NavBar = () => {
                 </NavigationMenuLink>
               </li>
               <li>
-                <Link href="/profile" legacyBehavior passHref>
-                  <NavigationMenuLink>Profile</NavigationMenuLink>
+                <Link href="/profileSettings" legacyBehavior passHref>
+                  <NavigationMenuLink>Profile settings</NavigationMenuLink>
                 </Link>
               </li>
               <li>
