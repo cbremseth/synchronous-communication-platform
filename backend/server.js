@@ -61,14 +61,30 @@ app.get("/api/channels", async (req, res) => {
 // POST /channels - Create a new channel in the database
 app.post("/api/channels", async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, members, createdBy } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: "Name is required" });
     }
 
-    const newChannel = new Channel({ name });
+    const newChannel = new Channel({ name, members, createdBy });
     await newChannel.save();
+
+    if (
+      members &&
+      Array.isArray(members) &&
+      members.length === 2 &&
+      createdBy
+    ) {
+      const recipient = members.find((m) => m !== createdBy);
+      if (recipient) {
+        io.to(recipient).emit("direct_channel_notification", {
+          channel: newChannel,
+          from: createdBy,
+          message: "You've got a new direct message!",
+        });
+      }
+    }
 
     res
       .status(201)
@@ -126,6 +142,23 @@ app.post("/api/signin", async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+app.get("/api/users/search", async (req, res) => {
+  const query = req.query.q;
+  if (!query) {
+    return res.status(400).json({ error: "Query parameter is required" });
+  }
+  try {
+    const regex = new RegExp(query, "i");
+    const users = await User.find({
+      $or: [{ username: regex }, { email: regex }],
+    }).select("username email _id");
+    res.json(users);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -256,6 +289,10 @@ io.on("connection", async (socket) => {
     if (currentChannel) {
       socket.leave(currentChannel);
     }
+  });
+
+  socket.on("register", (userId) => {
+    socket.join(userId);
   });
 });
 

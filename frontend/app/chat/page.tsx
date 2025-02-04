@@ -8,6 +8,7 @@ import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
+import DMChannelModal from "@/components/DMChannelModal";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -39,6 +40,7 @@ export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const [showDMModal, setShowDMModal] = useState(false);
 
   const handleSearch = (query: string) => {
     console.log("Search query:", query);
@@ -86,6 +88,7 @@ export default function Chat() {
     // Connection listener
     socket.on("connect", () => {
       console.log("Connected to socket with user:", user.username);
+      socket.emit("register", user.userID);
     });
 
     // Add message history listener
@@ -220,6 +223,13 @@ export default function Chat() {
               </span>
             )}
             <Button
+              variant="default"
+              size="sm"
+              onClick={() => setShowDMModal(true)}
+            >
+              New DM
+            </Button>
+            <Button
               variant="destructive"
               size="sm"
               onClick={() => (window.location.href = "/signin")}
@@ -287,6 +297,18 @@ export default function Chat() {
       <div className="w-64">
         <ChatInfo />
       </div>
+
+      {showDMModal && (
+        <DMChannelModal
+          isOpen={showDMModal}
+          onClose={() => setShowDMModal(false)}
+          onChannelCreated={(channel: Channel) => {
+            setSelectedChannel(channel);
+            setMessages([]);
+            socket.emit("join_channel", channel._id);
+          }}
+        />
+      )}
     </div>
   );
 }
