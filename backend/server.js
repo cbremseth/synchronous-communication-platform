@@ -96,24 +96,27 @@ app.post("/api/channels", async (req, res) => {
   }
 });
 
-// PATCH /channels/:id - Mark a channel as inactive
+// Update the PATCH endpoint to handle all channel updates
 app.patch("/api/channels/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const updates = req.body;
 
     const updatedChannel = await Channel.findByIdAndUpdate(
       id,
-      { active: false },
-      { new: true },
-    );
+      { $set: updates },
+      { new: true }
+    ).populate('users', 'username email')
+      .populate('createdBy', 'username');
 
     if (!updatedChannel) {
       return res.status(404).json({ error: "Channel not found" });
     }
 
-    res
-      .status(200)
-      .json({ message: "Channel marked as inactive", channel: updatedChannel });
+    res.status(200).json({
+      message: "Channel updated successfully",
+      channel: updatedChannel
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
