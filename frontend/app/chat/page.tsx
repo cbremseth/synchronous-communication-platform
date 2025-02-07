@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Manager } from "socket.io-client";
 import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
-import SearchBar from "@/components/ui/search-bar";
+// import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
 
 const manager = new Manager("http://localhost:5001");
@@ -31,15 +31,15 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  // const [searchResults, setSearchResults] = useState<Message[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
-  const handleSearch = (query: string) => {
-    const results = messages.filter((msg) =>
-      msg.content.toLowerCase().includes(query.toLowerCase()),
-    );
-    setSearchResults(results);
-  };
+  // const handleSearch = (query: string) => {
+  //   const results = messages.filter((msg) =>
+  //     msg.content.toLowerCase().includes(query.toLowerCase()),
+  //   );
+  //   setSearchResults(results);
+  // };
 
   function sendMessage() {
     if (!user || message.trim() === "" || !selectedChannel) return;
@@ -91,16 +91,24 @@ export default function Chat() {
     };
   }, [selectedChannel]);
 
-
-
   if (isLoading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        Loading...
+      </div>
+    );
   }
 
   if (!isLoading && !isAuthenticated) {
     return null;
   }
-  const SentMessage = ({ message, senderName }: { message: string; senderName: string }) => (
+  const SentMessage = ({
+    message,
+    senderName,
+  }: {
+    message: string;
+    senderName: string;
+  }) => (
     <div className="flex items-end justify-end space-x-2">
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
@@ -114,7 +122,13 @@ export default function Chat() {
     </div>
   );
 
-  const ReceivedMessage = ({ message, senderName }: { message: string; senderName: string }) => (
+  const ReceivedMessage = ({
+    message,
+    senderName,
+  }: {
+    message: string;
+    senderName: string;
+  }) => (
     <div className="flex items-end space-x-2">
       <Avatar className="bg-gray-100 dark:bg-gray-800">
         <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
@@ -128,7 +142,6 @@ export default function Chat() {
     </div>
   );
 
-
   return (
     <div className="flex w-full h-screen overflow-hidden">
       {/* Sidebar */}
@@ -141,7 +154,7 @@ export default function Chat() {
       {/* Main Chat Window */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         <div className="flex-none">
-          <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
+          {/* <SearchBar placeholder="Search messages..." onSearch={handleSearch} /> */}
         </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
@@ -149,8 +162,14 @@ export default function Chat() {
             {selectedChannel ? selectedChannel.name : "Select a Channel"}
           </h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">Welcome, {user.username}!</span>
-            <Button variant="destructive" size="sm" onClick={() => (window.location.href = "/signin")}>
+            <span className="text-sm text-gray-600">
+              Welcome, {user.username}!
+            </span>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => (window.location.href = "/signin")}
+            >
               Sign Out
             </Button>
           </div>
@@ -159,10 +178,18 @@ export default function Chat() {
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg) =>
             msg.sender === user.userID ? (
-              <SentMessage key={msg._id} message={msg.content} senderName={msg.senderName} />
+              <SentMessage
+                key={msg._id}
+                message={msg.content}
+                senderName={msg.senderName}
+              />
             ) : (
-              <ReceivedMessage key={msg._id} message={msg.content} senderName={msg.senderName} />
-            )
+              <ReceivedMessage
+                key={msg._id}
+                message={msg.content}
+                senderName={msg.senderName}
+              />
+            ),
           )}
           <div ref={messagesEndRef} />
         </main>
@@ -175,7 +202,12 @@ export default function Chat() {
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           />
-          <Button className="w-20" variant="default" size="lg" onClick={sendMessage}>
+          <Button
+            className="w-20"
+            variant="default"
+            size="lg"
+            onClick={sendMessage}
+          >
             Send
           </Button>
         </footer>

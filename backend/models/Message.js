@@ -14,7 +14,11 @@ const messageSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  channel: { type: mongoose.Schema.Types.ObjectId, ref: "Channel", required: true }
+  channel: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Channel",
+    required: true,
+  },
 });
 
 export default mongoose.model("Message", messageSchema);

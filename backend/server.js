@@ -34,7 +34,9 @@ app.post("/api/signup", async (req, res) => {
   try {
     const newUser = new User({ email, username, password });
     await newUser.save();
-    res.status(201).json({ message: "User created successfully", user: newUser });
+    res
+      .status(201)
+      .json({ message: "User created successfully", user: newUser });
   } catch (error) {
     if (error.code === 11000) {
       res.status(400).json({ message: "Email already exists", error });
@@ -67,7 +69,9 @@ app.post("/api/channels", async (req, res) => {
     const newChannel = new Channel({ name });
     await newChannel.save();
 
-    res.status(201).json({ message: "Channel created successfully", channel: newChannel });
+    res
+      .status(201)
+      .json({ message: "Channel created successfully", channel: newChannel });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
@@ -79,13 +83,19 @@ app.patch("/api/channels/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const updatedChannel = await Channel.findByIdAndUpdate(id, { active: false }, { new: true });
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      id,
+      { active: false },
+      { new: true },
+    );
 
     if (!updatedChannel) {
       return res.status(404).json({ error: "Channel not found" });
     }
 
-    res.status(200).json({ message: "Channel marked as inactive", channel: updatedChannel });
+    res
+      .status(200)
+      .json({ message: "Channel marked as inactive", channel: updatedChannel });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
@@ -165,8 +175,6 @@ io.on("connection", (socket) => {
       console.error("Error fetching messages:", error);
     }
   });
-
-
 
   // Handle new message
   socket.on("message", async (message) => {

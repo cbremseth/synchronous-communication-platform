@@ -4,7 +4,13 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
 export default function Sidebar({ onChannelSelect, selectedChannel }) {
@@ -73,13 +79,16 @@ export default function Sidebar({ onChannelSelect, selectedChannel }) {
     if (!channelToArchive) return;
 
     try {
-      const response = await fetch(`http://localhost:5001/api/channels/${channelToArchive._id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `http://localhost:5001/api/channels/${channelToArchive._id}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ active: false }),
         },
-        body: JSON.stringify({ active: false }),
-      });
+      );
 
       if (!response.ok) throw new Error("Failed to archive channel");
 
@@ -87,7 +96,9 @@ export default function Sidebar({ onChannelSelect, selectedChannel }) {
       console.log("Archived channel response:", data);
 
       // Remove the channel from UI
-      setChannels((prevChannels) => prevChannels.filter(channel => channel._id !== channelToArchive._id));
+      setChannels((prevChannels) =>
+        prevChannels.filter((channel) => channel._id !== channelToArchive._id),
+      );
 
       setArchiveModalOpen(false);
       setChannelToArchive(null);
@@ -109,31 +120,38 @@ export default function Sidebar({ onChannelSelect, selectedChannel }) {
       <div className="h-1/2 overflow-y-auto mt-4 space-y-2">
         {channels.length > 0
           ? channels.map((channel) => (
-            <Card
-              key={channel._id}
-              className={`p-2 cursor-pointer flex justify-between items-center transition-all
-                ${selectedChannel?._id === channel._id ? "bg-violet-600 text-white" : "bg-gray-700 hover:bg-gray-600"}`}
-              onClick={() => onChannelSelect(channel)} // ✅ Set selected channel
-            >
-              <span>{channel.name}</span>
-              <Button
-                variant="outline"
-                className="text-red-500 border-red-500 hover:bg-red-500 hover:text-white"
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent triggering onClick for selecting channel
-                  setChannelToArchive(channel);
-                  setArchiveModalOpen(true);
-                }}
+              <Card
+                key={channel._id}
+                className={`p-2 cursor-pointer flex justify-between items-center transition-all
+                ${
+                  selectedChannel?._id === channel._id
+                    ? "bg-violet-600 text-white"
+                    : "bg-gray-700 hover:bg-gray-600"
+                }`}
+                onClick={() => onChannelSelect(channel)} // ✅ Set selected channel
               >
-                Archive
-              </Button>
-            </Card>
-          ))
+                <span>{channel.name}</span>
+                <Button
+                  variant="outline"
+                  className="text-red-500 border-red-500 hover:bg-red-500 hover:text-white"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent triggering onClick for selecting channel
+                    setChannelToArchive(channel);
+                    setArchiveModalOpen(true);
+                  }}
+                >
+                  Archive
+                </Button>
+              </Card>
+            ))
           : !loading && <p className="text-gray-400">No channels available</p>}
       </div>
 
       {/* New Channel Button */}
-      <Button className="mt-4 bg-violet-600 hover:bg-violet-700" onClick={() => setIsModalOpen(true)}>
+      <Button
+        className="mt-4 bg-violet-600 hover:bg-violet-700"
+        onClick={() => setIsModalOpen(true)}
+      >
         New Channel
       </Button>
 
@@ -151,11 +169,17 @@ export default function Sidebar({ onChannelSelect, selectedChannel }) {
           />
           <div className="flex justify-end space-x-2 mt-4">
             <DialogClose asChild>
-              <Button variant="outline" className="bg-gray-700 hover:bg-gray-600">
+              <Button
+                variant="outline"
+                className="bg-gray-700 hover:bg-gray-600"
+              >
                 Cancel
               </Button>
             </DialogClose>
-            <Button onClick={handleCreateChannel} className="bg-violet-600 hover:bg-violet-700">
+            <Button
+              onClick={handleCreateChannel}
+              className="bg-violet-600 hover:bg-violet-700"
+            >
               Create
             </Button>
           </div>
@@ -168,14 +192,23 @@ export default function Sidebar({ onChannelSelect, selectedChannel }) {
           <DialogHeader>
             <DialogTitle>Archive Channel</DialogTitle>
           </DialogHeader>
-          <p>Are you sure you want to archive <strong>{channelToArchive?.name}</strong>? This action is permanent.</p>
+          <p>
+            Are you sure you want to archive{" "}
+            <strong>{channelToArchive?.name}</strong>? This action is permanent.
+          </p>
           <div className="flex justify-end space-x-2 mt-4">
             <DialogClose asChild>
-              <Button variant="outline" className="bg-gray-700 hover:bg-gray-600">
+              <Button
+                variant="outline"
+                className="bg-gray-700 hover:bg-gray-600"
+              >
                 Cancel
               </Button>
             </DialogClose>
-            <Button onClick={handleArchiveChannel} className="bg-red-600 hover:bg-red-700">
+            <Button
+              onClick={handleArchiveChannel}
+              className="bg-red-600 hover:bg-red-700"
+            >
               Archive
             </Button>
           </div>
@@ -184,7 +217,9 @@ export default function Sidebar({ onChannelSelect, selectedChannel }) {
 
       <h2 className="text-lg font-bold mt-6">Notifications</h2>
       <ScrollArea className="h-1/2 opacity-50 bg-gray-700 px-2 py-4 hover:bg-violet-900 rounded-md flex-1 overflow-y-auto mt-2 h-32 overflow-auto">
-        <p className="text-sm">User456 reacted to your message in Project Alpha</p>
+        <p className="text-sm">
+          User456 reacted to your message in Project Alpha
+        </p>
         <p className="text-sm">User123 sent a message in Project Alpha</p>
       </ScrollArea>
     </div>
