@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 
-export default function Sidebar() {
+export default function Sidebar({ onChannelSelect, selectedChannel }) {
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -109,12 +109,18 @@ export default function Sidebar() {
       <div className="h-1/2 overflow-y-auto mt-4 space-y-2">
         {channels.length > 0
           ? channels.map((channel) => (
-            <Card key={channel._id} className="p-2 cursor-pointer bg-gray-700 hover:bg-gray-600 flex justify-between items-center">
+            <Card
+              key={channel._id}
+              className={`p-2 cursor-pointer flex justify-between items-center transition-all
+                ${selectedChannel?._id === channel._id ? "bg-violet-600 text-white" : "bg-gray-700 hover:bg-gray-600"}`}
+              onClick={() => onChannelSelect(channel)} // ✅ Set selected channel
+            >
               <span>{channel.name}</span>
               <Button
                 variant="outline"
                 className="text-red-500 border-red-500 hover:bg-red-500 hover:text-white"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent triggering onClick for selecting channel
                   setChannelToArchive(channel);
                   setArchiveModalOpen(true);
                 }}
