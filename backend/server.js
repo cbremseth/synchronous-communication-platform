@@ -50,7 +50,14 @@ app.post("/api/signup", async (req, res) => {
 // GET /channels - Get list of all channels in database
 app.get("/api/channels", async (req, res) => {
   try {
-    const channels = await Channel.find();
+    const userId = req.query.userId;
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const channels = await Channel.find({ users: userId })
+      .populate("users", "username email")
+      .populate("createdBy", "username");
     res.status(200).json(channels);
   } catch (error) {
     console.error(error);
@@ -61,42 +68,86 @@ app.get("/api/channels", async (req, res) => {
 // POST /channels - Create a new channel in the database
 app.post("/api/channels", async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, users, createdBy, isDirectMessage } = req.body;
 
-    if (!name) {
-      return res.status(400).json({ error: "Name is required" });
+    if (!name || !users || !createdBy) {
+      return res
+        .status(400)
+        .json({ error: "Name, users, and createdBy are required" });
     }
 
-    const newChannel = new Channel({ name });
+    const newChannel = new Channel({
+      name,
+      users,
+      createdBy,
+      isDirectMessage: isDirectMessage || false,
+    });
     await newChannel.save();
 
-    res
-      .status(201)
-      .json({ message: "Channel created successfully", channel: newChannel });
+    const populatedChannel = await Channel.findById(newChannel._id)
+      .populate("users", "username email")
+      .populate("createdBy", "username");
+
+    res.status(201).json({
+      message: "Channel created successfully",
+      channel: populatedChannel,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// PATCH /channels/:id - Mark a channel as inactive
+// Update the PATCH endpoint to handle all channel updates
 app.patch("/api/channels/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const updates = req.body;
 
     const updatedChannel = await Channel.findByIdAndUpdate(
       id,
-      { active: false },
+      { $set: updates },
       { new: true },
-    );
+    )
+      .populate("users", "username email")
+      .populate("createdBy", "username");
 
     if (!updatedChannel) {
       return res.status(404).json({ error: "Channel not found" });
     }
 
-    res
-      .status(200)
-      .json({ message: "Channel marked as inactive", channel: updatedChannel });
+    res.status(200).json({
+      message: "Channel updated successfully",
+      channel: updatedChannel,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// New endpoint to manage channel users
+app.patch("/api/channels/:id/users", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { users } = req.body;
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      id,
+      { $set: { users } },
+      { new: true },
+    )
+      .populate("users", "username email")
+      .populate("createdBy", "username");
+
+    if (!updatedChannel) {
+      return res.status(404).json({ error: "Channel not found" });
+    }
+
+    res.status(200).json({
+      message: "Channel users updated",
+      channel: updatedChannel,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
@@ -164,6 +215,45 @@ app.get("/api/searchbar", async (req, res) => {
   }
 });
 
+// Add this new endpoint
+app.get("/api/users/search", async (req, res) => {
+  try {
+    const query = req.query.q;
+    if (!query) {
+      return res.status(400).json({ error: "Search query is required" });
+    }
+
+    const users = await User.find({
+      $or: [
+        { username: { $regex: query, $options: "i" } },
+        { email: { $regex: query, $options: "i" } },
+      ],
+    }).select("username email");
+
+    res.json(users);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/api/channels/:id", async (req, res) => {
+  try {
+    const channel = await Channel.findById(req.params.id)
+      .populate("users", "username email")
+      .populate("createdBy", "username");
+
+    if (!channel) {
+      return res.status(404).json({ error: "Channel not found" });
+    }
+
+    res.json(channel);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 const PORT = process.env.BACKEND_PORT || 5001;
 
 const httpServer = createServer(app);
@@ -175,41 +265,83 @@ const io = new Server(httpServer, {
 });
 
 io.on("connection", async (socket) => {
-  console.log(socket.id);
-  console.log("a user connected");
+  console.log("a user connected:", socket.id);
 
-  socket.on("get_message_history", async () => {
+  // Handle joining a specific channel
+  socket.on("join_channel", async (channelId) => {
     try {
-      const messageHistory = await Message.find({})
+      // Leave previous rooms
+      socket.rooms.forEach((room) => {
+        if (room !== socket.id) {
+          socket.leave(room);
+        }
+      });
+
+      // Join new room
+      socket.join(channelId);
+      console.log(`User joined channel: ${channelId}`);
+
+      // Send channel message history
+      const messageHistory = await Message.find({ channelId })
         .populate("sender", "username")
         .sort({ timestamp: 1 })
         .limit(100);
 
       const formattedMessages = messageHistory.map((msg) => ({
-        _id: msg._id,
+        _id: msg._id.toString(),
         content: msg.content,
-        sender: msg.sender._id,
+        sender: msg.sender._id.toString(),
         senderName: msg.sender.username,
+        channelId: msg.channelId.toString(),
         timestamp: msg.timestamp,
       }));
 
       socket.emit("message_history", formattedMessages);
     } catch (error) {
-      console.error("Error fetching message history:", error);
+      console.error("Error in join_channel:", error);
     }
   });
 
   socket.on("message", async (message) => {
-    const { content, sender, senderName } = message;
-    // save message to database
-    const newMessage = new Message({
-      content,
-      sender,
-      senderName,
-      timestamp: new Date(),
-    });
-    await newMessage.save();
-    io.emit("message", { ...message, _id: newMessage._id });
+    const { content, sender, senderName, channelId } = message;
+
+    try {
+      // Validate channelId exists
+      const channel = await Channel.findById(channelId);
+      if (!channel) {
+        console.error("Channel not found:", channelId);
+        return;
+      }
+
+      // Save message to database with channelId
+      const newMessage = new Message({
+        content,
+        sender,
+        senderName,
+        channelId,
+        timestamp: new Date(),
+      });
+      await newMessage.save();
+
+      // Format the message for sending
+      const messageToSend = {
+        _id: newMessage._id.toString(),
+        content,
+        sender,
+        senderName,
+        channelId,
+        timestamp: newMessage.timestamp,
+      };
+
+      // Emit message only to users in the same channel
+      io.to(channelId).emit("message", messageToSend);
+    } catch (error) {
+      console.error("Error saving/sending message:", error);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("user disconnected:", socket.id);
   });
 
   socket.on("updateMessage", async ({ messageId, newContent, userId }) => {

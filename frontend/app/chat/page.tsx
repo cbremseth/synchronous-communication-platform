@@ -8,8 +8,6 @@ import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
-import { Pencil } from "lucide-react";
-import NavBar from "../navBar";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -21,64 +19,37 @@ interface Message {
   senderName: string;
   timestamp?: string;
   isEditing?: boolean;
+  channelId: string;
 }
 
 interface MessageProps {
-  message: Message;
+  message: string;
   sender: string;
-  senderName: string;
-}
-
-interface UserResult {
-  _id: string;
-  username: string;
-  email: string;
-}
-
-interface MessageResult {
-  _id: string;
-  content: string;
   senderName: string;
 }
 
 export default function Chat({
   roomName = "General Chat",
+  channelId = "general",
 }: {
   roomName?: string;
+  channelId?: string;
 }) {
   const { user, isLoading, isAuthenticated } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [userResults, setUserResults] = useState<UserResult[]>([]);
-  const [messageResults, setMessageResults] = useState<MessageResult[]>([]);
-  const [editingMessage, setEditingMessage] = useState<string | null>(null);
-  const [editContent, setEditContent] = useState("");
+  const [searchResults, setSearchResults] = useState<Message[]>([]);
 
-  // Function to handle search
-  const handleSearch = async (query: string) => {
+  const handleSearch = (query: string) => {
     console.log("Search query:", query);
 
-    if (!query.trim()) {
-      setUserResults([]);
-      setMessageResults([]);
-      return;
-    }
+    // Filter messages that match the query
+    const results = messages.filter((msg) =>
+      msg.content.toLowerCase().includes(query.toLowerCase()),
+    );
 
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`,
-      );
-      if (!response.ok) throw new Error("Failed to fetch search results");
-
-      const data = await response.json();
-      setUserResults(data.users || []);
-      setMessageResults(data.messages || []);
-    } catch (error) {
-      console.error("Error searching:", error);
-      setUserResults([]);
-      setMessageResults([]);
-    }
+    setSearchResults(results);
   };
 
   function onClick(message: string) {
@@ -88,21 +59,11 @@ export default function Chat({
       content: message,
       sender: user.userID,
       senderName: user.username,
+      channelId: channelId,
+      _id: crypto.randomUUID(),
     });
     setMessage("");
   }
-
-  const handleUpdateMessage = (messageId: string, newContent: string) => {
-    if (!user || newContent.trim() === "") return;
-
-    socket.emit("updateMessage", {
-      messageId,
-      newContent,
-      userId: user.userID,
-    });
-    setEditingMessage(null);
-    setEditContent("");
-  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -117,24 +78,23 @@ export default function Chat({
       socket.connect();
     }
 
-    // Connection listener
-    socket.on("connect", () => {
-      console.log("Connected to socket with user:", user.username);
-      // Request message history when connected
-      socket.emit("get_message_history");
-    });
+    // Clear messages when switching channels
+    setMessages([]);
+
+    // Join the channel
+    socket.emit("join_channel", channelId);
 
     // Add message history listener
     socket.on("message_history", (history: Message[]) => {
       console.log("Received message history:", history);
       setMessages(history);
-      // Turn off message history listener
-      socket.off("message_history");
     });
 
     // Message listener for new messages
     socket.on("message", (message: Message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+      if (message.channelId === channelId) {
+        setMessages((prevMessages) => [...prevMessages, message]);
+      }
     });
 
     // Add new socket listener for message updates
@@ -158,9 +118,8 @@ export default function Chat({
       socket.off("connect");
       socket.off("message");
       socket.off("message_history");
-      socket.off("messageUpdated");
     };
-  }, [user, isAuthenticated, isLoading]);
+  }, [user, isAuthenticated, isLoading, channelId]);
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -192,7 +151,7 @@ export default function Chat({
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-          <p className="text-sm">{message.content}</p>
+          <p className="text-sm">{message}</p>
         </div>
       </div>
     </div>
@@ -200,47 +159,11 @@ export default function Chat({
 
   const SentMessage = ({ message, senderName }: MessageProps) => (
     <div className="flex items-end justify-end space-x-2">
-      <div className="flex flex-col items-end gap-1 relative group">
+      <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
-        {editingMessage === message._id ? (
-          <div className="flex gap-2">
-            <Input
-              className="min-w-[200px]"
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleUpdateMessage(message._id, editContent);
-                } else if (e.key === "Escape") {
-                  setEditingMessage(null);
-                  setEditContent("");
-                }
-              }}
-              autoFocus
-            />
-            <Button
-              size="sm"
-              onClick={() => handleUpdateMessage(message._id, editContent)}
-            >
-              Save
-            </Button>
-          </div>
-        ) : (
-          <div className="p-2 rounded-lg bg-blue-500 text-white relative">
-            <p className="text-sm">{message.content}</p>
-            {user?.userID === message.sender && (
-              <button
-                onClick={() => {
-                  setEditingMessage(message._id);
-                  setEditContent(message.content);
-                }}
-                className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <Pencil className="h-4 w-4 text-gray-500 hover:text-gray-700" />
-              </button>
-            )}
-          </div>
-        )}
+        <div className="p-2 rounded-lg bg-blue-500 text-white">
+          <p className="text-sm">{message}</p>
+        </div>
       </div>
       <Avatar className="bg-gray-100 dark:bg-gray-800">
         <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
@@ -249,22 +172,34 @@ export default function Chat({
   );
 
   return (
-    <div className="flex w-full h-screen">
+    <div className="flex w-full h-screen overflow-hidden">
       {/* Sidebar */}
-      <div className="w-64 h-screen bg-gradient-to-t from-violet-500 to-fuchsia-500">
+      <div className="w-64 h-full bg-gradient-to-t from-violet-500 to-fuchsia-500">
         <Sidebar />
       </div>
 
       <div className="w-[5px] bg-gray-600"></div>
 
       {/* Main Chat Window */}
-      <div className="flex-1 flex flex-col h-screen">
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Search Bar */}
-        <SearchBar
-          onSearch={handleSearch}
-          userResults={userResults}
-          messageResults={messageResults}
-        />
+        <div className="flex-none">
+          <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
+
+          {/* Search Results */}
+          {searchResults.length > 0 && (
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
+              <h2 className="text-sm font-semibold">Search Results:</h2>
+              <ul className="list-disc pl-5">
+                {searchResults.map((result) => (
+                  <li key={result._id} className="text-sm">
+                    {result.senderName}: {result.content}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
           <h1 className="text-lg font-semibold">{roomName}</h1>
@@ -272,7 +207,13 @@ export default function Chat({
             <span className="text-sm text-gray-600">
               Welcome, {user.username}!
             </span>
-            <NavBar />
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => (window.location.href = "/signin")}
+            >
+              Sign Out
+            </Button>
           </div>
         </header>
 
@@ -281,14 +222,14 @@ export default function Chat({
             msg.sender === user.userID ? (
               <SentMessage
                 key={msg._id}
-                message={msg}
+                message={msg.content}
                 sender={msg.sender}
                 senderName={msg.senderName}
               />
             ) : (
               <ReceivedMessage
                 key={msg._id}
-                message={msg}
+                message={msg.content}
                 sender={msg.sender}
                 senderName={msg.senderName}
               />

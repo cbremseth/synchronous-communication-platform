@@ -10,11 +10,25 @@ const messageSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
+  senderName: {
+    type: String,
+    required: true,
+  },
+  channelId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Channel",
+    required: true,
+    index: true,
+  },
   timestamp: {
     type: Date,
     default: Date.now,
+    index: true,
   },
 });
+
+// Compound index for efficient message retrieval in a channel
+messageSchema.index({ channelId: 1, timestamp: 1 });
 
 // Create a text index on message content for fast search
 messageSchema.index({ content: "text" });
