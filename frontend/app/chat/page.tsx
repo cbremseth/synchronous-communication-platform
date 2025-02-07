@@ -17,132 +17,90 @@ interface Message {
   content: string;
   sender: string;
   senderName: string;
+  channel: string;
   timestamp?: string;
 }
 
-interface MessageProps {
-  message: string;
-  sender: string;
-  senderName: string;
+interface Channel {
+  _id: string;
+  name: string;
 }
 
-export default function Chat({
-  roomName = "General Chat",
-}: {
-  roomName?: string;
-}) {
+export default function Chat() {
   const { user, isLoading, isAuthenticated } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
   const handleSearch = (query: string) => {
-    console.log("Search query:", query);
-
-    // Filter messages that match the query
     const results = messages.filter((msg) =>
       msg.content.toLowerCase().includes(query.toLowerCase()),
     );
-
     setSearchResults(results);
   };
 
-  function onClick(message: string) {
-    if (!user || message.trim() === "") return;
+  function sendMessage() {
+    if (!user || message.trim() === "" || !selectedChannel) return;
 
-    socket.emit("message", {
+    const newMessage: Message = {
+      _id: crypto.randomUUID(),
       content: message,
       sender: user.userID,
       senderName: user.username,
-      _id: crypto.randomUUID(),
-    });
+      channel: selectedChannel._id,
+      timestamp: new Date().toISOString(),
+    };
+
+    socket.emit("message", newMessage);
     setMessage("");
   }
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      window.location.href = "/signin";
-      return;
-    }
+    if (!selectedChannel) return;
 
-    if (!user) return;
+    console.log("Joining channel:", selectedChannel.name);
 
-    // Ensure socket is connected
-    if (!socket.connected) {
-      socket.connect();
-    }
+    // join the selected channel
+    socket.emit("join_channel", { channel: selectedChannel._id });
 
-    // Connection listener
-    socket.on("connect", () => {
-      console.log("Connected to socket with user:", user.username);
-      // Request message history when connected
-      socket.emit("get_message_history");
-    });
+    // fetch past messages for this channel
+    socket.emit("get_message_history", { channel: selectedChannel._id });
 
-    // Add message history listener
-    socket.on("message_history", (history: Message[]) => {
-      console.log("Received message history:", history);
+    // listen for history response and update state
+    socket.on("channel_messages", (history: Message[]) => {
+      console.log("Fetched messages for channel:", selectedChannel.name);
       setMessages(history);
-      // Turn off message history listener
-      socket.off("message_history");
     });
 
-    // Message listener for new messages
-    socket.on("message", (message: Message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
-    });
-
-    // Immediately request message history if already connected
-    if (socket.connected) {
-      socket.emit("get_message_history");
-    }
-
-    // Cleanup function
-    return () => {
-      socket.off("connect");
-      socket.off("message");
-      socket.off("message_history");
+    // listen for real-time messages
+    const handleNewMessage = (newMessage: Message) => {
+      if (newMessage.channel === selectedChannel._id) {
+        console.log("New message received:", newMessage);
+        setMessages((prevMessages) => [...prevMessages, newMessage]);
+      }
     };
-  }, [user, isAuthenticated, isLoading]);
 
-  // Add this new function to scroll to bottom
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+    socket.on("message", handleNewMessage);
 
-  // Add effect to scroll on new messages
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    // cleanup listeners when unmounting or switching channels
+    return () => {
+      socket.off("channel_messages");
+      socket.off("message", handleNewMessage);
+    };
+  }, [selectedChannel]);
+
+
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
-      </div>
-    );
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
 
   if (!isLoading && !isAuthenticated) {
     return null;
   }
-
-  const ReceivedMessage = ({ message, senderName }: MessageProps) => (
-    <div className="flex items-end space-x-2">
-      <Avatar className="bg-gray-100 dark:bg-gray-800">
-        <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
-      </Avatar>
-      <div className="flex flex-col gap-1">
-        <span className="text-xs text-gray-500">{senderName}</span>
-        <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-          <p className="text-sm">{message}</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  const SentMessage = ({ message, senderName }: MessageProps) => (
+  const SentMessage = ({ message, senderName }: { message: string; senderName: string }) => (
     <div className="flex items-end justify-end space-x-2">
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
@@ -156,64 +114,43 @@ export default function Chat({
     </div>
   );
 
-  // const SearchResult = () => (
-  //   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-  //     <h2 className="text-sm font-semibold mb-2">Search Results:</h2>
-  //     {searchResults.length > 0 ? (
-  //       <ul className="list-none space-y-1">
-  //         {searchResults.map((result) => (
-  //           <li key={result._id} className="text-sm">
-  //             {result.sender}
-  //           </li>
-  //         ))}
-  //       </ul>
-  //     ) : (
-  //       <p className="text-gray-500 text-sm">No results found.</p>
-  //     )}
-  //   </div>
-  // );
+  const ReceivedMessage = ({ message, senderName }: { message: string; senderName: string }) => (
+    <div className="flex items-end space-x-2">
+      <Avatar className="bg-gray-100 dark:bg-gray-800">
+        <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-gray-500">{senderName}</span>
+        <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
+          <p className="text-sm">{message}</p>
+        </div>
+      </div>
+    </div>
+  );
+
 
   return (
     <div className="flex w-full h-screen overflow-hidden">
       {/* Sidebar */}
       <div className="w-64 h-full bg-gradient-to-t from-violet-500 to-fuchsia-500">
-        <Sidebar />
+        <Sidebar onChannelSelect={setSelectedChannel} />
       </div>
 
       <div className="w-[5px] bg-gray-600"></div>
 
       {/* Main Chat Window */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Search Bar */}
         <div className="flex-none">
           <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
-
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-              <h2 className="text-sm font-semibold">Search Results:</h2>
-              <ul className="list-disc pl-5">
-                {searchResults.map((result) => (
-                  <li key={result._id} className="text-sm">
-                    {result.senderName}: {result.content}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
-          <h1 className="text-lg font-semibold">{roomName}</h1>
+          <h1 className="text-lg font-semibold">
+            {selectedChannel ? selectedChannel.name : "Select a Channel"}
+          </h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">
-              Welcome, {user.username}!
-            </span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => (window.location.href = "/signin")}
-            >
+            <span className="text-sm text-gray-600">Welcome, {user.username}!</span>
+            <Button variant="destructive" size="sm" onClick={() => (window.location.href = "/signin")}>
               Sign Out
             </Button>
           </div>
@@ -222,20 +159,10 @@ export default function Chat({
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg) =>
             msg.sender === user.userID ? (
-              <SentMessage
-                key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-              />
+              <SentMessage key={msg._id} message={msg.content} senderName={msg.senderName} />
             ) : (
-              <ReceivedMessage
-                key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-              />
-            ),
+              <ReceivedMessage key={msg._id} message={msg.content} senderName={msg.senderName} />
+            )
           )}
           <div ref={messagesEndRef} />
         </main>
@@ -246,20 +173,14 @@ export default function Chat({
             placeholder="Type a message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onClick(message)}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           />
-          <Button
-            className="w-20"
-            variant="default"
-            size="lg"
-            onClick={() => onClick(message)}
-          >
+          <Button className="w-20" variant="default" size="lg" onClick={sendMessage}>
             Send
           </Button>
         </footer>
       </div>
 
-      {/* Chat Info Panel */}
       <div className="w-64">
         <ChatInfo />
       </div>
