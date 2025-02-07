@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Bell } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { CreateChannelModal } from "@/components/ui/create-channel-modal";
 import { EditChannelModal } from "@/components/ui/edit-channel-modal";
+import { useToast } from "@/hooks/use-toast";
+import { Manager } from "socket.io-client";
 
 interface Channel {
   _id: string;
@@ -24,6 +26,18 @@ interface Channel {
   };
 }
 
+interface Notification {
+  _id: string;
+  type: "NEW_MESSAGE" | "CHANNEL_INVITE";
+  channelId: string;
+  channelName: string;
+  content: string;
+  timestamp: string;
+}
+
+const manager = new Manager("http://localhost:5001");
+const socket = manager.socket("/");
+
 export default function Sidebar() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,28 +45,82 @@ export default function Sidebar() {
   const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { toast } = useToast();
 
-  // Fetch channels from backend
+  // Move fetchChannels outside of the first useEffect
+  const fetchChannels = async () => {
+    if (!user?.userID) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5001/api/channels?userId=${user.userID}`);
+      if (!response.ok) throw new Error("Failed to fetch channels");
+
+      const data = await response.json();
+      setChannels(data);
+    } catch (err) {
+      setError("Error fetching channels");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleChannelClick = (channelId: string) => {
+    window.location.href = `/chat/${channelId}`;
+  };
+  // First useEffect for initial channel fetch
   useEffect(() => {
-    const fetchChannels = async () => {
-      if (!user?.userID) return;
-      
-      try {
-        const response = await fetch(`http://localhost:5001/api/channels?userId=${user.userID}`);
-        if (!response.ok) throw new Error("Failed to fetch channels");
+    fetchChannels();
+  }, [user]);
 
+  // Notification effect
+  useEffect(() => {
+    if (!user?.userID) return;
+
+    // Connect user to their personal notification channel
+    socket.emit("user_connect", user.userID);
+
+    // Listen for notifications
+    socket.on("notification", (notification: Notification) => {
+      toast({
+        title: notification.type === "NEW_MESSAGE" ? "New Message" : "Channel Invite",
+        description: notification.content,
+        action: notification.channelId ? (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => handleChannelClick(notification.channelId.toString())}
+          >
+            View
+          </Button>
+        ) : undefined,
+      });
+
+      setNotifications(prev => [notification, ...prev]);
+
+      if (notification.type === "CHANNEL_INVITE") {
+        fetchChannels();
+      }
+    });
+
+    // Fetch existing notifications
+    const fetchNotifications = async () => {
+      try {
+        const response = await fetch(`http://localhost:5001/api/notifications?userId=${user.userID}`);
+        if (!response.ok) throw new Error("Failed to fetch notifications");
         const data = await response.json();
-        setChannels(data);
-      } catch (err) {
-        setError("Error fetching channels");
-        console.error(err);
-      } finally {
-        setLoading(false);
+        setNotifications(data);
+      } catch (error) {
+        console.error("Error fetching notifications:", error);
       }
     };
 
-    fetchChannels();
-  }, [user]);
+    fetchNotifications();
+
+    return () => {
+      socket.off("notification");
+    };
+  }, [user, toast, handleChannelClick]); // Add handleChannelClick to dependencies
 
   const createNewChannel = async (name: string, users: string[]) => {
     if (!user?.userID) return;
@@ -80,10 +148,6 @@ export default function Sidebar() {
     }
   };
 
-  const handleChannelClick = (channelId: string) => {
-    window.location.href = `/chat/${channelId}`;
-  };
-
   const handleUpdateChannel = async (channelId: string, updates: { name: string; users: string[] }) => {
     if (!user?.userID) return;
 
@@ -104,6 +168,20 @@ export default function Sidebar() {
       console.error(err);
       setError("Error updating channel");
     }
+  };
+
+  const handleNotificationClick = (notification: Notification) => {
+    // Get the channelId from the notification
+    const channelId = notification.channelId?._id || notification.channelId;
+
+    handleChannelClick(channelId);
+    
+    // Mark as read
+    fetch("http://localhost:5001/api/notifications/read", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notificationIds: [notification._id] }),
+    });
   };
 
   return (
@@ -150,7 +228,7 @@ export default function Sidebar() {
                       {channel.users.length} members
                     </span>
                   </div>
-                  {channel.createdBy._id === user?.userID && (
+                  {channel.createdBy?._id === user?.userID && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -179,12 +257,34 @@ export default function Sidebar() {
         />
       )}
 
-      <h2 className="text-lg font-bold mt-6">Notifications</h2>
-      <ScrollArea className="h-1/2 opacity-50 bg-gray-700 px-2 py-4 hover:bg-violet-900 rounded-md flex-1 overflow-y-auto mt-2 h-32 overflow-auto">
-        <p className="text-sm">
-          User456 reacted to your message in Project Alpha
-        </p>
-        <p className="text-sm">User123 sent a message in Project Alpha</p>
+      <div className="flex justify-between items-center mt-6">
+        <h2 className="text-lg font-bold">Notifications</h2>
+        {notifications.length > 0 && (
+          <div className="bg-red-500 rounded-full px-2 py-1 text-xs">
+            {notifications.length}
+          </div>
+        )}
+      </div>
+      
+      <ScrollArea className="flex-1 mt-2">
+        {notifications.length > 0 ? (
+          <div className="space-y-2">
+            {notifications.map((notification) => (
+              <div
+                key={notification._id}
+                className="bg-gray-700 p-2 rounded-lg cursor-pointer hover:bg-gray-600"
+                onClick={() => handleNotificationClick(notification)}
+              >
+                <p className="text-sm">{notification.content}</p>
+                <span className="text-xs text-gray-400">
+                  {new Date(notification.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-400 text-sm">No new notifications</p>
+        )}
       </ScrollArea>
     </div>
   );
