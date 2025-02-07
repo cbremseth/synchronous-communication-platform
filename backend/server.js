@@ -237,6 +237,52 @@ app.get("/api/users/search", async (req, res) => {
   }
 });
 
+// Add endpoint to get or create general chat room
+app.get("/api/channels/general", async (req, res) => {
+  try {
+    const userId = req.query.userId;
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    // Try to find existing general chat
+    let generalChannel = await Channel.findOne({ name: "General Chat" })
+      .populate("users", "username email")
+      .populate("createdBy", "username");
+
+    // If general chat doesn't exist, create it
+    if (!generalChannel) {
+      const newChannel = new Channel({
+        name: "General Chat",
+        users: [userId], // Start with the requesting user
+        createdBy: userId,
+      });
+      await newChannel.save();
+
+      generalChannel = await Channel.findById(newChannel._id)
+        .populate("users", "username email")
+        .populate("createdBy", "username");
+    } else {
+      // If user is not in the channel, add them
+      if (!generalChannel.users.some((u) => u._id.toString() === userId)) {
+        generalChannel.users.push(userId);
+        await generalChannel.save();
+
+        // Refresh the populated data
+        generalChannel = await Channel.findById(generalChannel._id)
+          .populate("users", "username email")
+          .populate("createdBy", "username");
+      }
+    }
+
+    res.json(generalChannel);
+  } catch (error) {
+    console.error("Error with general channel:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get specific channel by ID
 app.get("/api/channels/:id", async (req, res) => {
   try {
     const channel = await Channel.findById(req.params.id)

@@ -160,7 +160,7 @@ export default function Sidebar() {
                       {channel.users.length} members
                     </span>
                   </div>
-                  {channel.createdBy._id === user?.userID && (
+                  {channel.createdBy?._id === user?.userID && (
                     <Button
                       variant="ghost"
                       size="icon"

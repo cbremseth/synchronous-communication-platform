@@ -8,6 +8,7 @@ import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
+import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -30,7 +31,7 @@ interface MessageProps {
 
 export default function Chat({
   roomName = "General Chat",
-  channelId = "general",
+  channelId,
 }: {
   roomName?: string;
   channelId?: string;
@@ -40,6 +41,29 @@ export default function Chat({
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
+    channelId,
+  );
+
+  // Add function to fetch general channel
+  const fetchGeneralChannel = async () => {
+    try {
+      if (!user) return;
+      const generalChannel = await getOrCreateGeneralChannel(user.userID);
+      console.log("generalChannel", generalChannel);
+      setCurrentChannelId(generalChannel._id);
+    } catch (error) {
+      console.error("Error fetching general channel:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!channelId && roomName === "General Chat") {
+      fetchGeneralChannel();
+    } else {
+      setCurrentChannelId(channelId);
+    }
+  }, [channelId, roomName, user]);
 
   const handleSearch = (query: string) => {
     console.log("Search query:", query);
@@ -53,14 +77,13 @@ export default function Chat({
   };
 
   function onClick(message: string) {
-    if (!user || message.trim() === "") return;
+    if (!user || !currentChannelId || message.trim() === "") return;
 
     socket.emit("message", {
       content: message,
       sender: user.userID,
       senderName: user.username,
-      channelId: channelId,
-      _id: crypto.randomUUID(),
+      channelId: currentChannelId,
     });
     setMessage("");
   }
@@ -71,7 +94,7 @@ export default function Chat({
       return;
     }
 
-    if (!user) return;
+    if (!user || !currentChannelId) return;
 
     // Ensure socket is connected
     if (!socket.connected) {
@@ -82,7 +105,7 @@ export default function Chat({
     setMessages([]);
 
     // Join the channel
-    socket.emit("join_channel", channelId);
+    socket.emit("join_channel", currentChannelId);
 
     // Add message history listener
     socket.on("message_history", (history: Message[]) => {
@@ -92,7 +115,7 @@ export default function Chat({
 
     // Message listener for new messages
     socket.on("message", (message: Message) => {
-      if (message.channelId === channelId) {
+      if (message.channelId === currentChannelId) {
         setMessages((prevMessages) => [...prevMessages, message]);
       }
     });
@@ -119,7 +142,7 @@ export default function Chat({
       socket.off("message");
       socket.off("message_history");
     };
-  }, [user, isAuthenticated, isLoading, channelId]);
+  }, [user, isAuthenticated, isLoading, currentChannelId]);
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
