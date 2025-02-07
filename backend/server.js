@@ -336,8 +336,8 @@ io.on("connection", async (socket) => {
       const formattedMessages = messageHistory.map((msg) => ({
         _id: msg._id.toString(),
         content: msg.content,
-        sender: msg.sender._id.toString(),
-        senderName: msg.sender.username,
+        sender: msg.sender ? msg.sender._id.toString() : null,
+        senderName: msg.sender ? msg.sender.username : "Deleted User",
         channelId: msg.channelId.toString(),
         timestamp: msg.timestamp,
       }));
