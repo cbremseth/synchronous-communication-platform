@@ -166,9 +166,6 @@ io.on("connection", async (socket) => {
 
   socket.on("message", async (message) => {
     const { content, sender, senderName } = message;
-
-    console.log(message);
-    io.emit("message", message);
     // save message to database
     const newMessage = new Message({
       content,
@@ -177,6 +174,39 @@ io.on("connection", async (socket) => {
       timestamp: new Date(),
     });
     await newMessage.save();
+    io.emit("message", { ...message, _id: newMessage._id });
+  });
+
+  socket.on("updateMessage", async ({ messageId, newContent, userId }) => {
+    try {
+      // Find the message and verify ownership
+      const message = await Message.findById(messageId);
+
+      if (!message) {
+        console.error("Message not found");
+        return;
+      }
+
+      if (message.sender.toString() !== userId) {
+        console.error("Unauthorized message update attempt");
+        return;
+      }
+
+      // Update the message
+      message.content = newContent;
+      await message.save();
+
+      // Broadcast the update to all clients
+      io.emit("messageUpdated", {
+        _id: message._id,
+        content: newContent,
+        sender: message.sender,
+        senderName: message.senderName,
+        timestamp: message.timestamp,
+      });
+    } catch (error) {
+      console.error("Error updating message:", error);
+    }
   });
 });
 
