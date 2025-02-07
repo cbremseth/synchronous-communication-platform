@@ -34,12 +34,9 @@ app.post("/api/signup", async (req, res) => {
   try {
     const newUser = new User({ email, username, password });
     await newUser.save();
-    res
-      .status(201)
-      .json({ message: "User created successfully", user: newUser });
+    res.status(201).json({ message: "User created successfully", user: newUser });
   } catch (error) {
     if (error.code === 11000) {
-      // Duplicate key error/ using emails as keys
       res.status(400).json({ message: "Email already exists", error });
     } else {
       res.status(500).json({ message: "Server error", error });
@@ -70,9 +67,7 @@ app.post("/api/channels", async (req, res) => {
     const newChannel = new Channel({ name });
     await newChannel.save();
 
-    res
-      .status(201)
-      .json({ message: "Channel created successfully", channel: newChannel });
+    res.status(201).json({ message: "Channel created successfully", channel: newChannel });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
@@ -84,19 +79,13 @@ app.patch("/api/channels/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const updatedChannel = await Channel.findByIdAndUpdate(
-      id,
-      { active: false },
-      { new: true },
-    );
+    const updatedChannel = await Channel.findByIdAndUpdate(id, { active: false }, { new: true });
 
     if (!updatedChannel) {
       return res.status(404).json({ error: "Channel not found" });
     }
 
-    res
-      .status(200)
-      .json({ message: "Channel marked as inactive", channel: updatedChannel });
+    res.status(200).json({ message: "Channel marked as inactive", channel: updatedChannel });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
@@ -139,47 +128,81 @@ const io = new Server(httpServer, {
   },
 });
 
-io.on("connection", async (socket) => {
+io.on("connection", (socket) => {
   console.log(socket.id);
-  console.log("a user connected");
+  console.log("A user connected");
 
-  socket.on("get_message_history", async () => {
+  // Handle user joining a channel
+  socket.on("join_channel", ({ channel }) => {
+    if (!channel) return;
+    socket.join(channel);
+    console.log(`User ${socket.id} joined channel: ${channel}`);
+  });
+
+  // Fetch messages for a specific channel
+  socket.on("get_message_history", async ({ channel }) => {
     try {
-      const messageHistory = await Message.find({})
-        .populate("sender", "username")
+      if (!channel) return;
+
+      const messageHistory = await Message.find({ channel })
+        .populate("sender", "username") // Ensure sender's username is populated
         .sort({ timestamp: 1 })
         .limit(100);
 
-      const formattedMessages = messageHistory.map((msg) => ({
-        _id: msg._id,
-        content: msg.content,
-        sender: msg.sender._id,
-        senderName: msg.sender.username,
-        timestamp: msg.timestamp,
-      }));
+      // Filter out messages where sender is missing
+      const formattedMessages = messageHistory
+        .filter((msg) => msg.sender && msg.sender._id) // Ensure sender exists before using _id
+        .map((msg) => ({
+          _id: msg._id,
+          content: msg.content,
+          sender: msg.sender._id, // Prevent crash from missing sender
+          senderName: msg.sender.username,
+          timestamp: msg.timestamp,
+        }));
 
-      socket.emit("message_history", formattedMessages);
+      socket.emit("channel_messages", formattedMessages);
     } catch (error) {
-      console.error("Error fetching message history:", error);
+      console.error("Error fetching messages:", error);
     }
   });
 
-  socket.on("message", async (message) => {
-    const { content, sender, senderName } = message;
 
-    console.log(message);
-    io.emit("message", message);
-    // save message to database
-    const newMessage = new Message({
-      content,
-      sender,
-      senderName,
-      timestamp: new Date(),
-    });
-    await newMessage.save();
+
+  // Handle new message
+  socket.on("message", async (message) => {
+    try {
+      const { content, sender, senderName, channel } = message;
+
+      if (!channel) {
+        return socket.emit("error", { message: "Channel ID is required" });
+      }
+
+      console.log("Received message:", message);
+
+      // Save message to database
+      const newMessage = new Message({
+        content,
+        sender,
+        senderName,
+        channel, // Link message to the correct channel
+        timestamp: new Date(),
+      });
+
+      await newMessage.save();
+
+      // Emit the message ONLY to users in that channel
+      io.to(channel).emit("message", newMessage);
+    } catch (error) {
+      console.error("Error saving message:", error);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected");
   });
 });
 
+// Start the server
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
