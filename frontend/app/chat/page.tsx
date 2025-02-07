@@ -29,6 +29,18 @@ interface MessageProps {
   senderName: string;
 }
 
+interface UserResult {
+  _id: string;
+  username: string;
+  email: string;
+}
+
+interface MessageResult {
+  _id: string;
+  content: string;
+  senderName: string;
+}
+
 export default function Chat({
   roomName = "General Chat",
 }: {
@@ -38,19 +50,35 @@ export default function Chat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [userResults, setUserResults] = useState<UserResult[]>([]);
+  const [messageResults, setMessageResults] = useState<MessageResult[]>([]);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
 
-  const handleSearch = (query: string) => {
+  // Function to handle search
+  const handleSearch = async (query: string) => {
     console.log("Search query:", query);
 
-    // Filter messages that match the query
-    const results = messages.filter((msg) =>
-      msg.content.toLowerCase().includes(query.toLowerCase()),
-    );
+    if (!query.trim()) {
+      setUserResults([]);
+      setMessageResults([]);
+      return;
+    }
 
-    setSearchResults(results);
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`,
+      );
+      if (!response.ok) throw new Error("Failed to fetch search results");
+
+      const data = await response.json();
+      setUserResults(data.users || []);
+      setMessageResults(data.messages || []);
+    } catch (error) {
+      console.error("Error searching:", error);
+      setUserResults([]);
+      setMessageResults([]);
+    }
   };
 
   function onClick(message: string) {
@@ -220,23 +248,6 @@ export default function Chat({
     </div>
   );
 
-  // const SearchResult = () => (
-  //   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-  //     <h2 className="text-sm font-semibold mb-2">Search Results:</h2>
-  //     {searchResults.length > 0 ? (
-  //       <ul className="list-none space-y-1">
-  //         {searchResults.map((result) => (
-  //           <li key={result._id} className="text-sm">
-  //             {result.sender}
-  //           </li>
-  //         ))}
-  //       </ul>
-  //     ) : (
-  //       <p className="text-gray-500 text-sm">No results found.</p>
-  //     )}
-  //   </div>
-  // );
-
   return (
     <div className="flex w-full h-screen">
       {/* Sidebar */}
@@ -249,23 +260,11 @@ export default function Chat({
       {/* Main Chat Window */}
       <div className="flex-1 flex flex-col h-screen">
         {/* Search Bar */}
-        <div className="flex-none">
-          <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
-
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-              <h2 className="text-sm font-semibold">Search Results:</h2>
-              <ul className="list-disc pl-5">
-                {searchResults.map((result) => (
-                  <li key={result._id} className="text-sm">
-                    {result.senderName}: {result.content}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+        <SearchBar
+          onSearch={handleSearch}
+          userResults={userResults}
+          messageResults={messageResults}
+        />
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
           <h1 className="text-lg font-semibold">{roomName}</h1>

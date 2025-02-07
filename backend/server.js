@@ -129,6 +129,41 @@ app.post("/api/signin", async (req, res) => {
   }
 });
 
+// endpoint to search for users (based on username or email) and messages
+app.get("/api/searchbar", async (req, res) => {
+  try {
+    const { query, limit = 10, page = 1 } = req.query;
+    if (!query) return res.status(400).json({ error: "Query is required" });
+
+    // Search Users (username, email)
+    const users = await User.find({ $text: { $search: query } })
+      .select("_id username email")
+      .limit(Number(limit))
+      .skip((page - 1) * limit);
+
+    // Search Messages (content) and populate sender
+    const messages = await Message.find({ $text: { $search: query } })
+      .populate("sender", "username email")
+      .select("_id content sender")
+      .limit(Number(limit))
+      .skip((page - 1) * limit);
+
+    // Format results
+    const formattedMessages = messages.map((msg) => ({
+      _id: msg._id,
+      content: msg.content,
+      senderId: msg.sender?._id || null,
+      senderName: msg.sender?.username || "Unknown",
+      senderEmail: msg.sender?.email || "No Email",
+    }));
+
+    res.json({ users, messages: formattedMessages });
+  } catch (error) {
+    console.error("Error searching:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
 const PORT = process.env.BACKEND_PORT || 5001;
 
 const httpServer = createServer(app);

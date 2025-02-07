@@ -16,4 +16,7 @@ const messageSchema = new mongoose.Schema({
   },
 });
 
+// Create a text index on message content for fast search
+messageSchema.index({ content: "text" });
+
 export default mongoose.model("Message", messageSchema);
