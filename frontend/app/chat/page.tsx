@@ -8,6 +8,8 @@ import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
+import { Pencil } from "lucide-react";
+import NavBar from "../navBar";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -18,10 +20,11 @@ interface Message {
   sender: string;
   senderName: string;
   timestamp?: string;
+  isEditing?: boolean;
 }
 
 interface MessageProps {
-  message: string;
+  message: Message;
   sender: string;
   senderName: string;
 }
@@ -49,6 +52,8 @@ export default function Chat({
   const [messages, setMessages] = useState<Message[]>([]);
   const [userResults, setUserResults] = useState<UserResult[]>([]);
   const [messageResults, setMessageResults] = useState<MessageResult[]>([]);
+  const [editingMessage, setEditingMessage] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
 
   // Function to handle search
   const handleSearch = async (query: string) => {
@@ -83,10 +88,21 @@ export default function Chat({
       content: message,
       sender: user.userID,
       senderName: user.username,
-      _id: crypto.randomUUID(),
     });
     setMessage("");
   }
+
+  const handleUpdateMessage = (messageId: string, newContent: string) => {
+    if (!user || newContent.trim() === "") return;
+
+    socket.emit("updateMessage", {
+      messageId,
+      newContent,
+      userId: user.userID,
+    });
+    setEditingMessage(null);
+    setEditContent("");
+  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -121,6 +137,17 @@ export default function Chat({
       setMessages((prevMessages) => [...prevMessages, message]);
     });
 
+    // Add new socket listener for message updates
+    socket.on("messageUpdated", (updatedMessage: Message) => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg._id === updatedMessage._id
+            ? { ...msg, content: updatedMessage.content }
+            : msg,
+        ),
+      );
+    });
+
     // Immediately request message history if already connected
     if (socket.connected) {
       socket.emit("get_message_history");
@@ -131,6 +158,7 @@ export default function Chat({
       socket.off("connect");
       socket.off("message");
       socket.off("message_history");
+      socket.off("messageUpdated");
     };
   }, [user, isAuthenticated, isLoading]);
 
@@ -164,7 +192,7 @@ export default function Chat({
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-          <p className="text-sm">{message}</p>
+          <p className="text-sm">{message.content}</p>
         </div>
       </div>
     </div>
@@ -172,11 +200,47 @@ export default function Chat({
 
   const SentMessage = ({ message, senderName }: MessageProps) => (
     <div className="flex items-end justify-end space-x-2">
-      <div className="flex flex-col items-end gap-1">
+      <div className="flex flex-col items-end gap-1 relative group">
         <span className="text-xs text-gray-500">{senderName}</span>
-        <div className="p-2 rounded-lg bg-blue-500 text-white">
-          <p className="text-sm">{message}</p>
-        </div>
+        {editingMessage === message._id ? (
+          <div className="flex gap-2">
+            <Input
+              className="min-w-[200px]"
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleUpdateMessage(message._id, editContent);
+                } else if (e.key === "Escape") {
+                  setEditingMessage(null);
+                  setEditContent("");
+                }
+              }}
+              autoFocus
+            />
+            <Button
+              size="sm"
+              onClick={() => handleUpdateMessage(message._id, editContent)}
+            >
+              Save
+            </Button>
+          </div>
+        ) : (
+          <div className="p-2 rounded-lg bg-blue-500 text-white relative">
+            <p className="text-sm">{message.content}</p>
+            {user?.userID === message.sender && (
+              <button
+                onClick={() => {
+                  setEditingMessage(message._id);
+                  setEditContent(message.content);
+                }}
+                className="absolute -left-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Pencil className="h-4 w-4 text-gray-500 hover:text-gray-700" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
       <Avatar className="bg-gray-100 dark:bg-gray-800">
         <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
@@ -185,16 +249,16 @@ export default function Chat({
   );
 
   return (
-    <div className="flex w-full h-screen overflow-hidden">
+    <div className="flex w-full h-screen">
       {/* Sidebar */}
-      <div className="w-64 h-full bg-gradient-to-t from-violet-500 to-fuchsia-500">
+      <div className="w-64 h-screen bg-gradient-to-t from-violet-500 to-fuchsia-500">
         <Sidebar />
       </div>
 
       <div className="w-[5px] bg-gray-600"></div>
 
       {/* Main Chat Window */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen">
         {/* Search Bar */}
         <SearchBar
           onSearch={handleSearch}
@@ -208,13 +272,7 @@ export default function Chat({
             <span className="text-sm text-gray-600">
               Welcome, {user.username}!
             </span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => (window.location.href = "/signin")}
-            >
-              Sign Out
-            </Button>
+            <NavBar />
           </div>
         </header>
 
@@ -223,14 +281,14 @@ export default function Chat({
             msg.sender === user.userID ? (
               <SentMessage
                 key={msg._id}
-                message={msg.content}
+                message={msg}
                 sender={msg.sender}
                 senderName={msg.senderName}
               />
             ) : (
               <ReceivedMessage
                 key={msg._id}
-                message={msg.content}
+                message={msg}
                 sender={msg.sender}
                 senderName={msg.senderName}
               />

@@ -201,9 +201,6 @@ io.on("connection", async (socket) => {
 
   socket.on("message", async (message) => {
     const { content, sender, senderName } = message;
-
-    console.log(message);
-    io.emit("message", message);
     // save message to database
     const newMessage = new Message({
       content,
@@ -212,9 +209,93 @@ io.on("connection", async (socket) => {
       timestamp: new Date(),
     });
     await newMessage.save();
+    io.emit("message", { ...message, _id: newMessage._id });
+  });
+
+  socket.on("updateMessage", async ({ messageId, newContent, userId }) => {
+    try {
+      // Find the message and verify ownership
+      const message = await Message.findById(messageId);
+
+      if (!message) {
+        console.error("Message not found");
+        return;
+      }
+
+      if (message.sender.toString() !== userId) {
+        console.error("Unauthorized message update attempt");
+        return;
+      }
+
+      // Update the message
+      message.content = newContent;
+      await message.save();
+
+      // Broadcast the update to all clients
+      io.emit("messageUpdated", {
+        _id: message._id,
+        content: newContent,
+        sender: message.sender,
+        senderName: message.senderName,
+        timestamp: message.timestamp,
+      });
+    } catch (error) {
+      console.error("Error updating message:", error);
+    }
   });
 });
 
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+// PUT request to update username and password; skips a field if empty
+app.put("/api/users/:id", async (req, res) => {
+  const { username, password } = req.body;
+  const userId = req.params.id;
+
+  if (!username && !password) {
+    return res.status(400).json({
+      message:
+        "At least one field (username or password) is required to update.",
+    });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (username) {
+      user.username = username;
+    }
+    if (password) {
+      user.password = password;
+    }
+
+    await user.save();
+    res.status(200).json({ message: "User updated successfully", user });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Delete account end point
+app.delete("/api/users/:id", async (req, res) => {
+  const { id: userId } = req.params;
+  if (!userId) {
+    return res.status(400).json({ message: "User id is required." });
+  }
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    await user.deleteOne();
+    res.status(200).json({ message: "User deleted successfully." });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
 });
