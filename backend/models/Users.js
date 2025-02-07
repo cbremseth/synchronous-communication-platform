@@ -31,6 +31,13 @@ const userSchema = new mongoose.Schema({
   },
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  sentRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  status: {
+    type: String,
+    enum: ["online", "offline", "busy", "away"],
+    default: "online",
+  },
 });
 
 // Hash password before saving
