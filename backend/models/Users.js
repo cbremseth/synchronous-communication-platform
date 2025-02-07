@@ -55,5 +55,8 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   }
 };
 
+// Create a text index on username and email for fast search
+userSchema.index({ username: "text", email: "text" });
+
 const User = mongoose.models.User || mongoose.model("User", userSchema);
 export default User;

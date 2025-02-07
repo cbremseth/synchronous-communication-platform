@@ -27,8 +27,10 @@ const messageSchema = new mongoose.Schema({
   },
 });
 
+// Compound index for efficient message retrieval in a channel
 messageSchema.index({ channelId: 1, timestamp: 1 });
 
-const Message = mongoose.model("Message", messageSchema);
+// Create a text index on message content for fast search
+messageSchema.index({ content: "text" });
 
-export default Message;
+export default mongoose.model("Message", messageSchema);

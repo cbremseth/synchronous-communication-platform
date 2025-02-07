@@ -18,6 +18,7 @@ interface Message {
   sender: string;
   senderName: string;
   timestamp?: string;
+  isEditing?: boolean;
   channelId: string;
 }
 
@@ -95,6 +96,22 @@ export default function Chat({
         setMessages((prevMessages) => [...prevMessages, message]);
       }
     });
+
+    // Add new socket listener for message updates
+    socket.on("messageUpdated", (updatedMessage: Message) => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg._id === updatedMessage._id
+            ? { ...msg, content: updatedMessage.content }
+            : msg,
+        ),
+      );
+    });
+
+    // Immediately request message history if already connected
+    if (socket.connected) {
+      socket.emit("get_message_history");
+    }
 
     // Cleanup function
     return () => {

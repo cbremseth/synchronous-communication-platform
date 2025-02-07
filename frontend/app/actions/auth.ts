@@ -105,3 +105,77 @@ export async function signUpAction(values: SignUpFormData) {
     };
   }
 }
+
+// Action to update the profile of the user
+export async function updateProfileAction({
+  session,
+  updateData,
+}: {
+  session: { user: { id: string } };
+  updateData: { username?: string; password?: string };
+}) {
+  const userId = session?.user?.id;
+  if (!userId) {
+    throw new Error("User not authenticated");
+  }
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/users/${userId}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      },
+    );
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || "Failed to update profile on the server",
+      );
+    }
+    const updatedUser = await response.json();
+    return { success: true, data: updatedUser };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+//Action to delete users account
+export async function deleteAccountAction({
+  session,
+}: {
+  session: { user: { id: string } };
+}): Promise<{ success: boolean; error?: string }> {
+  const userId = session?.user?.id;
+  if (!userId) {
+    throw new Error("User not authenticated");
+  }
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/users/${userId}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.message || "Failed to delete account on the server",
+      );
+    }
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
