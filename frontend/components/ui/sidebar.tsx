@@ -30,8 +30,8 @@ export default function Sidebar() {
   }, []);
 
   return (
-    <div className="h-full ring-2 ring-white text-white p-4 mx-4 my-4 flex flex-col rounded-lg">
-      <h2 className="text-lg font-bold">Conversations</h2>
+    <div className="h-full ring-2 ring-white text-white mx-4 flex flex-col rounded-lg text-center">
+      <h2 className="text-lg font-bold my-8">Conversations</h2>
 
       {/* Show loading state */}
       {loading && <p className="text-gray-400 mt-2">Loading channels...</p>}
