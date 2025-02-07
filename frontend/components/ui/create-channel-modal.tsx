@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +27,12 @@ interface CreateChannelModalProps {
   currentUser: { userID: string; username: string } | null;
 }
 
-export function CreateChannelModal({ isOpen, onClose, onCreate, currentUser }: CreateChannelModalProps) {
+export function CreateChannelModal({
+  isOpen,
+  onClose,
+  onCreate,
+  currentUser,
+}: CreateChannelModalProps) {
   const [channelName, setChannelName] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,17 +45,21 @@ export function CreateChannelModal({ isOpen, onClose, onCreate, currentUser }: C
     }
 
     try {
-      const response = await fetch(`http://localhost:5001/api/users/search?q=${query}`);
-      if (!response.ok) throw new Error('Failed to search users');
+      const response = await fetch(
+        `http://localhost:5001/api/users/search?q=${query}`,
+      );
+      if (!response.ok) throw new Error("Failed to search users");
       const users = await response.json();
-      setSearchResults(users.filter((user: User) => user._id !== currentUser?.userID));
+      setSearchResults(
+        users.filter((user: User) => user._id !== currentUser?.userID),
+      );
     } catch (error) {
-      console.error('Error searching users:', error);
+      console.error("Error searching users:", error);
     }
   };
 
   const handleAddUser = (user: User) => {
-    if (!selectedUsers.find(u => u._id === user._id)) {
+    if (!selectedUsers.find((u) => u._id === user._id)) {
       setSelectedUsers([...selectedUsers, user]);
     }
     setSearchQuery("");
@@ -52,12 +67,15 @@ export function CreateChannelModal({ isOpen, onClose, onCreate, currentUser }: C
   };
 
   const handleRemoveUser = (userId: string) => {
-    setSelectedUsers(selectedUsers.filter(user => user._id !== userId));
+    setSelectedUsers(selectedUsers.filter((user) => user._id !== userId));
   };
 
   const handleCreate = () => {
     if (channelName.trim()) {
-      onCreate(channelName, selectedUsers.map(user => user._id));
+      onCreate(
+        channelName,
+        selectedUsers.map((user) => user._id),
+      );
       setChannelName("");
       setSelectedUsers([]);
       onClose();
@@ -70,7 +88,7 @@ export function CreateChannelModal({ isOpen, onClose, onCreate, currentUser }: C
         <DialogHeader>
           <DialogTitle>Create New Channel</DialogTitle>
         </DialogHeader>
-        
+
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Channel Name</Label>
@@ -92,10 +110,10 @@ export function CreateChannelModal({ isOpen, onClose, onCreate, currentUser }: C
               }}
               placeholder="Search users..."
             />
-            
+
             {searchResults.length > 0 && (
               <ScrollArea className="h-[100px] border rounded-md p-2">
-                {searchResults.map(user => (
+                {searchResults.map((user) => (
                   <div
                     key={user._id}
                     className="flex items-center justify-between p-2 hover:bg-gray-100 cursor-pointer"
@@ -111,8 +129,11 @@ export function CreateChannelModal({ isOpen, onClose, onCreate, currentUser }: C
             <div className="mt-2">
               <Label>Selected Users</Label>
               <ScrollArea className="h-[100px] border rounded-md p-2">
-                {selectedUsers.map(user => (
-                  <div key={user._id} className="flex items-center justify-between p-2">
+                {selectedUsers.map((user) => (
+                  <div
+                    key={user._id}
+                    className="flex items-center justify-between p-2"
+                  >
                     <span>{user.username}</span>
                     <Button
                       variant="ghost"
@@ -129,10 +150,12 @@ export function CreateChannelModal({ isOpen, onClose, onCreate, currentUser }: C
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleCreate}>Create Channel</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-} 
+}

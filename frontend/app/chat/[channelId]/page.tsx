@@ -12,7 +12,9 @@ export default function ChannelPage() {
   useEffect(() => {
     const fetchChannelDetails = async () => {
       try {
-        const response = await fetch(`http://localhost:5001/api/channels/${channelId}`);
+        const response = await fetch(
+          `http://localhost:5001/api/channels/${channelId}`,
+        );
         if (!response.ok) throw new Error("Failed to fetch channel");
         const channel = await response.json();
         setChannelName(channel.name);
@@ -26,4 +28,4 @@ export default function ChannelPage() {
   }, [channelId]);
 
   return <Chat roomName={channelName} channelId={channelId} />;
-} 
+}

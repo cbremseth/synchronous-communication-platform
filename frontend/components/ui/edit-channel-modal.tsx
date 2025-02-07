@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,12 +33,21 @@ interface Channel {
 interface EditChannelModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (channelId: string, updates: { name: string; users: string[] }) => void;
+  onSave: (
+    channelId: string,
+    updates: { name: string; users: string[] },
+  ) => void;
   channel: Channel;
   currentUser: { userID: string; username: string } | null;
 }
 
-export function EditChannelModal({ isOpen, onClose, onSave, channel, currentUser }: EditChannelModalProps) {
+export function EditChannelModal({
+  isOpen,
+  onClose,
+  onSave,
+  channel,
+  currentUser,
+}: EditChannelModalProps) {
   const [channelName, setChannelName] = useState(channel.name);
   const [selectedUsers, setSelectedUsers] = useState<User[]>(channel.users);
   const [searchQuery, setSearchQuery] = useState("");
@@ -50,15 +65,20 @@ export function EditChannelModal({ isOpen, onClose, onSave, channel, currentUser
     }
 
     try {
-      const response = await fetch(`http://localhost:5001/api/users/search?q=${query}`);
-      if (!response.ok) throw new Error('Failed to search users');
+      const response = await fetch(
+        `http://localhost:5001/api/users/search?q=${query}`,
+      );
+      if (!response.ok) throw new Error("Failed to search users");
       const users = await response.json();
-      setSearchResults(users.filter((user: User) => 
-        user._id !== currentUser?.userID && 
-        !selectedUsers.some(u => u._id === user._id)
-      ));
+      setSearchResults(
+        users.filter(
+          (user: User) =>
+            user._id !== currentUser?.userID &&
+            !selectedUsers.some((u) => u._id === user._id),
+        ),
+      );
     } catch (error) {
-      console.error('Error searching users:', error);
+      console.error("Error searching users:", error);
     }
   };
 
@@ -71,14 +91,14 @@ export function EditChannelModal({ isOpen, onClose, onSave, channel, currentUser
   const handleRemoveUser = (userId: string) => {
     // Don't allow removing the channel creator
     if (userId === channel.createdBy._id) return;
-    setSelectedUsers(selectedUsers.filter(user => user._id !== userId));
+    setSelectedUsers(selectedUsers.filter((user) => user._id !== userId));
   };
 
   const handleSave = () => {
     if (channelName.trim()) {
       onSave(channel._id, {
         name: channelName,
-        users: selectedUsers.map(user => user._id)
+        users: selectedUsers.map((user) => user._id),
       });
       onClose();
     }
@@ -90,7 +110,7 @@ export function EditChannelModal({ isOpen, onClose, onSave, channel, currentUser
         <DialogHeader>
           <DialogTitle>Edit Channel</DialogTitle>
         </DialogHeader>
-        
+
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Channel Name</Label>
@@ -112,10 +132,10 @@ export function EditChannelModal({ isOpen, onClose, onSave, channel, currentUser
               }}
               placeholder="Search users..."
             />
-            
+
             {searchResults.length > 0 && (
               <ScrollArea className="h-[100px] border rounded-md p-2">
-                {searchResults.map(user => (
+                {searchResults.map((user) => (
                   <div
                     key={user._id}
                     className="flex items-center justify-between p-2 hover:bg-gray-100 cursor-pointer"
@@ -131,8 +151,11 @@ export function EditChannelModal({ isOpen, onClose, onSave, channel, currentUser
             <div className="mt-2">
               <Label>Channel Members</Label>
               <ScrollArea className="h-[100px] border rounded-md p-2">
-                {selectedUsers.map(user => (
-                  <div key={user._id} className="flex items-center justify-between p-2">
+                {selectedUsers.map((user) => (
+                  <div
+                    key={user._id}
+                    className="flex items-center justify-between p-2"
+                  >
                     <div className="flex items-center gap-2">
                       <span>{user.username}</span>
                       {user._id === channel.createdBy._id && (
@@ -156,10 +179,12 @@ export function EditChannelModal({ isOpen, onClose, onSave, channel, currentUser
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
           <Button onClick={handleSave}>Save Changes</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-} 
+}

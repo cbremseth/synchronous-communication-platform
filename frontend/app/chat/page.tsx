@@ -27,23 +27,6 @@ interface MessageProps {
   senderName: string;
 }
 
-interface User {
-  _id: string;
-  username: string;
-  email: string;
-}
-
-interface Channel {
-  _id: string;
-  name: string;
-  users: User[];
-  isDirectMessage: boolean;
-  createdBy: {
-    _id: string;
-    username: string;
-  };
-}
-
 export default function Chat({
   roomName = "General Chat",
   channelId = "general",
@@ -170,69 +153,6 @@ export default function Chat({
       </Avatar>
     </div>
   );
-
-  const ManageUsers = ({ channel, onUpdate }: { channel: Channel; onUpdate: () => void }) => {
-    const [users, setUsers] = useState<User[]>([]);
-    const [loading, setLoading] = useState(false);
-
-    const addUser = async (userId: string) => {
-      try {
-        const response = await fetch(`http://localhost:5001/api/channels/${channel._id}/users`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            users: [...channel.users.map(u => u._id), userId]
-          }),
-        });
-
-        if (!response.ok) throw new Error('Failed to add user');
-        onUpdate();
-      } catch (error) {
-        console.error('Error adding user:', error);
-      }
-    };
-
-    const removeUser = async (userId: string) => {
-      try {
-        const response = await fetch(`http://localhost:5001/api/channels/${channel._id}/users`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            users: channel.users.filter(u => u._id !== userId).map(u => u._id)
-          }),
-        });
-
-        if (!response.ok) throw new Error('Failed to remove user');
-        onUpdate();
-      } catch (error) {
-        console.error('Error removing user:', error);
-      }
-    };
-
-    return (
-      <div className="p-4">
-        <h3 className="text-lg font-semibold mb-4">Manage Users</h3>
-        <div className="space-y-2">
-          {channel.users.map(user => (
-            <div key={user._id} className="flex justify-between items-center">
-              <span>{user.username}</span>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => removeUser(user._id)}
-              >
-                Remove
-              </Button>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="flex w-full h-screen overflow-hidden">

@@ -36,9 +36,11 @@ export default function Sidebar() {
   useEffect(() => {
     const fetchChannels = async () => {
       if (!user?.userID) return;
-      
+
       try {
-        const response = await fetch(`http://localhost:5001/api/channels?userId=${user.userID}`);
+        const response = await fetch(
+          `http://localhost:5001/api/channels?userId=${user.userID}`,
+        );
         if (!response.ok) throw new Error("Failed to fetch channels");
 
         const data = await response.json();
@@ -84,22 +86,30 @@ export default function Sidebar() {
     window.location.href = `/chat/${channelId}`;
   };
 
-  const handleUpdateChannel = async (channelId: string, updates: { name: string; users: string[] }) => {
+  const handleUpdateChannel = async (
+    channelId: string,
+    updates: { name: string; users: string[] },
+  ) => {
     if (!user?.userID) return;
 
     try {
-      const response = await fetch(`http://localhost:5001/api/channels/${channelId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `http://localhost:5001/api/channels/${channelId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updates),
         },
-        body: JSON.stringify(updates),
-      });
+      );
 
       if (!response.ok) throw new Error("Failed to update channel");
 
       const { channel } = await response.json();
-      setChannels(prev => prev.map(ch => ch._id === channelId ? channel : ch));
+      setChannels((prev) =>
+        prev.map((ch) => (ch._id === channelId ? channel : ch)),
+      );
     } catch (err) {
       console.error(err);
       setError("Error updating channel");

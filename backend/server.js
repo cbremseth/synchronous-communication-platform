@@ -56,8 +56,8 @@ app.get("/api/channels", async (req, res) => {
     }
 
     const channels = await Channel.find({ users: userId })
-      .populate('users', 'username email')
-      .populate('createdBy', 'username');
+      .populate("users", "username email")
+      .populate("createdBy", "username");
     res.status(200).json(channels);
   } catch (error) {
     console.error(error);
@@ -71,24 +71,26 @@ app.post("/api/channels", async (req, res) => {
     const { name, users, createdBy, isDirectMessage } = req.body;
 
     if (!name || !users || !createdBy) {
-      return res.status(400).json({ error: "Name, users, and createdBy are required" });
+      return res
+        .status(400)
+        .json({ error: "Name, users, and createdBy are required" });
     }
 
     const newChannel = new Channel({
       name,
       users,
       createdBy,
-      isDirectMessage: isDirectMessage || false
+      isDirectMessage: isDirectMessage || false,
     });
     await newChannel.save();
 
     const populatedChannel = await Channel.findById(newChannel._id)
-      .populate('users', 'username email')
-      .populate('createdBy', 'username');
+      .populate("users", "username email")
+      .populate("createdBy", "username");
 
     res.status(201).json({
       message: "Channel created successfully",
-      channel: populatedChannel
+      channel: populatedChannel,
     });
   } catch (error) {
     console.error(error);
@@ -105,9 +107,10 @@ app.patch("/api/channels/:id", async (req, res) => {
     const updatedChannel = await Channel.findByIdAndUpdate(
       id,
       { $set: updates },
-      { new: true }
-    ).populate('users', 'username email')
-      .populate('createdBy', 'username');
+      { new: true },
+    )
+      .populate("users", "username email")
+      .populate("createdBy", "username");
 
     if (!updatedChannel) {
       return res.status(404).json({ error: "Channel not found" });
@@ -115,7 +118,7 @@ app.patch("/api/channels/:id", async (req, res) => {
 
     res.status(200).json({
       message: "Channel updated successfully",
-      channel: updatedChannel
+      channel: updatedChannel,
     });
   } catch (error) {
     console.error(error);
@@ -132,9 +135,10 @@ app.patch("/api/channels/:id/users", async (req, res) => {
     const updatedChannel = await Channel.findByIdAndUpdate(
       id,
       { $set: { users } },
-      { new: true }
-    ).populate('users', 'username email')
-      .populate('createdBy', 'username');
+      { new: true },
+    )
+      .populate("users", "username email")
+      .populate("createdBy", "username");
 
     if (!updatedChannel) {
       return res.status(404).json({ error: "Channel not found" });
@@ -142,7 +146,7 @@ app.patch("/api/channels/:id/users", async (req, res) => {
 
     res.status(200).json({
       message: "Channel users updated",
-      channel: updatedChannel
+      channel: updatedChannel,
     });
   } catch (error) {
     console.error(error);
@@ -186,10 +190,10 @@ app.get("/api/users/search", async (req, res) => {
 
     const users = await User.find({
       $or: [
-        { username: { $regex: query, $options: 'i' } },
-        { email: { $regex: query, $options: 'i' } }
-      ]
-    }).select('username email');
+        { username: { $regex: query, $options: "i" } },
+        { email: { $regex: query, $options: "i" } },
+      ],
+    }).select("username email");
 
     res.json(users);
   } catch (error) {
@@ -201,8 +205,8 @@ app.get("/api/users/search", async (req, res) => {
 app.get("/api/channels/:id", async (req, res) => {
   try {
     const channel = await Channel.findById(req.params.id)
-      .populate('users', 'username email')
-      .populate('createdBy', 'username');
+      .populate("users", "username email")
+      .populate("createdBy", "username");
 
     if (!channel) {
       return res.status(404).json({ error: "Channel not found" });
@@ -244,7 +248,7 @@ io.on("connection", async (socket) => {
 
       // Send channel message history
       const messageHistory = await Message.find({ channelId })
-        .populate('sender', 'username')
+        .populate("sender", "username")
         .sort({ timestamp: 1 })
         .limit(100);
 
