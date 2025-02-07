@@ -9,6 +9,7 @@ import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
 import { Pencil } from "lucide-react";
+import NavBar from "../navBar";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -237,16 +238,16 @@ export default function Chat({
   // );
 
   return (
-    <div className="flex w-full h-screen overflow-hidden">
+    <div className="flex w-full h-screen">
       {/* Sidebar */}
-      <div className="w-64 h-full bg-gradient-to-t from-violet-500 to-fuchsia-500">
+      <div className="w-64 h-screen bg-gradient-to-t from-violet-500 to-fuchsia-500">
         <Sidebar />
       </div>
 
       <div className="w-[5px] bg-gray-600"></div>
 
       {/* Main Chat Window */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-screen">
         {/* Search Bar */}
         <div className="flex-none">
           <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
@@ -272,13 +273,7 @@ export default function Chat({
             <span className="text-sm text-gray-600">
               Welcome, {user.username}!
             </span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => (window.location.href = "/signin")}
-            >
-              Sign Out
-            </Button>
+            <NavBar />
           </div>
         </header>
 

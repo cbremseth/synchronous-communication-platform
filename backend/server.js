@@ -213,3 +213,54 @@ io.on("connection", async (socket) => {
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+// PUT request to update username and password; skips a field if empty
+app.put("/api/users/:id", async (req, res) => {
+  const { username, password } = req.body;
+  const userId = req.params.id;
+
+  if (!username && !password) {
+    return res.status(400).json({
+      message:
+        "At least one field (username or password) is required to update.",
+    });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (username) {
+      user.username = username;
+    }
+    if (password) {
+      user.password = password;
+    }
+
+    await user.save();
+    res.status(200).json({ message: "User updated successfully", user });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Delete account end point
+app.delete("/api/users/:id", async (req, res) => {
+  const { id: userId } = req.params;
+  if (!userId) {
+    return res.status(400).json({ message: "User id is required." });
+  }
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    await user.deleteOne();
+    res.status(200).json({ message: "User deleted successfully." });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
