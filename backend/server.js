@@ -131,27 +131,30 @@ app.post("/api/signin", async (req, res) => {
 
 // endpoint to search for users (based on username or email) and messages
 app.get("/api/searchbar", async (req, res) => {
-  const { query } = req.query;
-  console.log("Search query:", query);
-
   try {
-    const regex = new RegExp(query, "i");
+    const { query, limit = 10, page = 1 } = req.query;
+    if (!query) return res.status(400).json({ error: "Query is required" });
 
-    // Find users with matching username or email
-    const users = await User.find({
-      $or: [{ username: regex }, { email: regex }],
-    }).select("_id username email");
+    // Search Users (username, email)
+    const users = await User.find({ $text: { $search: query } })
+      .select("_id username email")
+      .limit(Number(limit))
+      .skip((page - 1) * limit);
 
-    // Find messages containing the query
-    const messages = await Message.find({ content: regex })
-      .populate("sender", "username")
-      .select("_id content sender");
+    // Search Messages (content) and populate sender
+    const messages = await Message.find({ $text: { $search: query } })
+      .populate("sender", "username email")
+      .select("_id content sender")
+      .limit(Number(limit))
+      .skip((page - 1) * limit);
 
-    // Format messages to include sender's username
+    // Format results
     const formattedMessages = messages.map((msg) => ({
       _id: msg._id,
       content: msg.content,
+      senderId: msg.sender?._id || null,
       senderName: msg.sender?.username || "Unknown",
+      senderEmail: msg.sender?.email || "No Email",
     }));
 
     res.json({ users, messages: formattedMessages });

@@ -8,7 +8,6 @@ import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
-import Link from "next/link";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -28,9 +27,15 @@ interface MessageProps {
 }
 
 interface UserResult {
-  id: string;
-  email: string;
+  _id: string;
   username: string;
+  email: string;
+}
+
+interface MessageResult {
+  _id: string;
+  content: string;
+  senderName: string;
 }
 
 export default function Chat({
@@ -42,16 +47,16 @@ export default function Chat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [userSearchResults, setUserSearchResults] = useState<UserResult[]>([]);
-  const [messageSearchResults, setMessageSearchResults] = useState<Message[]>(
-    [],
-  );
+  const [userResults, setUserResults] = useState<UserResult[]>([]);
+  const [messageResults, setMessageResults] = useState<MessageResult[]>([]);
 
+  // Function to handle search
   const handleSearch = async (query: string) => {
     console.log("Search query:", query);
+
     if (!query.trim()) {
-      setUserSearchResults([]);
-      setMessageSearchResults([]);
+      setUserResults([]);
+      setMessageResults([]);
       return;
     }
 
@@ -59,19 +64,15 @@ export default function Chat({
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`,
       );
+      if (!response.ok) throw new Error("Failed to fetch search results");
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch search results");
-      }
       const data = await response.json();
-
-      // Update state with search results
-      setUserSearchResults(data.users || []);
-      setMessageSearchResults(data.messages || []);
+      setUserResults(data.users || []);
+      setMessageResults(data.messages || []);
     } catch (error) {
       console.error("Error searching:", error);
-      setUserSearchResults([]);
-      setMessageSearchResults([]);
+      setUserResults([]);
+      setMessageResults([]);
     }
   };
 
@@ -195,45 +196,11 @@ export default function Chat({
       {/* Main Chat Window */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Search Bar */}
-        <div className="flex-none">
-          <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
-
-          {/* Search Results */}
-          <div className="mt-2">
-            {/* Display User Profiles if Found */}
-            {userSearchResults.length > 0 && (
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-                <h2 className="text-sm font-semibold">Users:</h2>
-                <ul className="list-disc pl-5">
-                  {userSearchResults.map((user) => (
-                    <li key={user._id} className="text-sm">
-                      <Link
-                        href={`/profile/${user._id}`}
-                        className="text-blue-500 hover:underline"
-                      >
-                        <strong>{user.username}</strong> - {user.email}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-
-          {/* Display Messages if Found */}
-          {messageSearchResults.length > 0 && (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-              <h2 className="text-sm font-semibold">Messages:</h2>
-              <ul className="list-disc pl-5">
-                {messageSearchResults.map((msg) => (
-                  <li key={msg._id} className="text-sm">
-                    <strong>{msg.senderName}:</strong> {msg.content}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+        <SearchBar
+          onSearch={handleSearch}
+          userResults={userResults}
+          messageResults={messageResults}
+        />
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
           <h1 className="text-lg font-semibold">{roomName}</h1>
