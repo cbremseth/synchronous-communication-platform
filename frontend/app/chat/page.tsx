@@ -10,6 +10,7 @@ import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
+import { useRouter } from "next/navigation";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -37,6 +38,7 @@ export default function Chat({
   roomName?: string;
   channelId?: string;
 }) {
+  const router = useRouter();
   const { user, isLoading, isAuthenticated } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
@@ -90,8 +92,11 @@ export default function Chat({
   }
 
   useEffect(() => {
+    console.log("Auth state:", { user, isLoading, isAuthenticated });
     if (!isLoading && !isAuthenticated) {
-      window.location.href = "/signin";
+      console.log("isLoading:", isLoading);
+      console.log("isAuthenticated:", isAuthenticated);
+      router.push("/signin");
       return;
     }
 

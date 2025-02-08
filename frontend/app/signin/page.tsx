@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { signInAction, type SignInFormData } from "@/app/actions/auth";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 
 // Validation schema for login
 const signInFormSchema = z.object({
@@ -28,8 +29,20 @@ const signInFormSchema = z.object({
 
 export function LoginForm() {
   const router = useRouter();
+  const { status, data: session, update: updateSession } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Add effect to handle redirect after session is established
+  useEffect(() => {
+    console.log("Session status changed:", status);
+    console.log("Current session:", session);
+
+    if (status === "authenticated" && session?.user) {
+      console.log("Redirecting to chat page...");
+      router.replace("/chat");
+    }
+  }, [status, session, router]);
 
   const form = useForm<SignInFormData>({
     resolver: zodResolver(signInFormSchema),
@@ -52,8 +65,8 @@ export function LoginForm() {
         return;
       }
 
-      // Successful login
-      router.push("/chat");
+      // Force a session update after successful sign in
+      await updateSession();
     } catch (error) {
       console.error("Sign in error:", error);
       setError(error instanceof Error ? error.message : "Failed to sign in");
