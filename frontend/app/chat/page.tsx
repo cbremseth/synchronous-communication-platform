@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
-import { useSocketContext } from "../../context/SocketContext"; // Updated import path
+import { useSocketContext } from "../../context/SocketContext";
 
 interface Message {
   _id: string;
