@@ -1,9 +1,9 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Manager } from "socket.io-client";
 import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
@@ -11,9 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
-
-const manager = new Manager("http://localhost:5001");
-const socket = manager.socket("/");
+import { useSocketContext } from "../../context/SocketContext"; // Updated import path
 
 interface Message {
   _id: string;
@@ -47,9 +45,10 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
+  const socket = useSocketContext();
 
   // Add function to fetch general channel
-  const fetchGeneralChannel = async () => {
+  const fetchGeneralChannel = useCallback(async () => {
     try {
       if (!user) return;
       const generalChannel = await getOrCreateGeneralChannel(user.userID);
@@ -58,7 +57,7 @@ export default function Chat({
     } catch (error) {
       console.error("Error fetching general channel:", error);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!channelId && roomName === "General Chat") {
@@ -66,7 +65,7 @@ export default function Chat({
     } else {
       setCurrentChannelId(channelId);
     }
-  }, [channelId, roomName, user]);
+  }, [channelId, roomName, user, fetchGeneralChannel]);
 
   const handleSearch = (query: string) => {
     console.log("Search query:", query);
@@ -82,7 +81,7 @@ export default function Chat({
   function onClick(message: string) {
     if (!user || !currentChannelId || message.trim() === "") return;
 
-    socket.emit("message", {
+    socket?.emit("message", {
       content: message,
       sender: user.userID,
       senderName: user.username,
@@ -103,31 +102,31 @@ export default function Chat({
     if (!user || !currentChannelId) return;
 
     // Ensure socket is connected
-    if (!socket.connected) {
-      socket.connect();
+    if (!socket?.connected) {
+      socket?.connect();
     }
 
     // Clear messages when switching channels
     setMessages([]);
 
     // Join the channel
-    socket.emit("join_channel", currentChannelId);
+    socket?.emit("join_channel", currentChannelId);
 
     // Add message history listener
-    socket.on("message_history", (history: Message[]) => {
+    socket?.on("message_history", (history: Message[]) => {
       console.log("Received message history:", history);
       setMessages(history);
     });
 
     // Message listener for new messages
-    socket.on("message", (message: Message) => {
+    socket?.on("message", (message: Message) => {
       if (message.channelId === currentChannelId) {
         setMessages((prevMessages) => [...prevMessages, message]);
       }
     });
 
     // Add new socket listener for message updates
-    socket.on("messageUpdated", (updatedMessage: Message) => {
+    socket?.on("messageUpdated", (updatedMessage: Message) => {
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg._id === updatedMessage._id
@@ -138,17 +137,17 @@ export default function Chat({
     });
 
     // Immediately request message history if already connected
-    if (socket.connected) {
-      socket.emit("get_message_history");
+    if (socket?.connected) {
+      socket?.emit("get_message_history");
     }
 
     // Cleanup function
     return () => {
-      socket.off("connect");
-      socket.off("message");
-      socket.off("message_history");
+      socket?.off("connect");
+      socket?.off("message");
+      socket?.off("message_history");
     };
-  }, [user, isAuthenticated, isLoading, currentChannelId]);
+  }, [user, isAuthenticated, isLoading, currentChannelId, router, socket]);
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -282,7 +281,7 @@ export default function Chat({
 
       {/* Chat Info Panel */}
       <div className="w-64">
-        <ChatInfo />
+        <ChatInfo channelId={currentChannelId} />
       </div>
     </div>
   );

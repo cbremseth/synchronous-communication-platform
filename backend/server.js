@@ -477,3 +477,58 @@ app.delete("/api/users/:id", async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
+io.on("connection", (socket) => {
+  socket.on("join_channel", async (channelId) => {
+    try {
+      const channel = await Channel.findById(channelId).populate({
+        path: "users",
+        select: "_id username status",
+      });
+
+      if (!channel) return;
+
+      const participants = channel.users.map((user) => ({
+        id: user._id,
+        username: user.username,
+        status: user.status,
+      }));
+
+      socket.join(channelId);
+      socket.emit("channel_participants", participants);
+    } catch (error) {
+      socket.emit("error", {
+        message: "Error joining channel",
+        error: error.message,
+      });
+    }
+  });
+});
+
+app.put("/api/users/:id/status", async (req, res) => {
+  const userId = req.params.id;
+  const { status } = req.body;
+  if (!userId || !status) {
+    return res
+      .status(400)
+      .json({ message: "User id and status are required." });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    user.status = status;
+    await user.save();
+
+    // Emit the updated status to all connected sockets
+    io.emit("statusUpdated", { userId: user._id, status: user.status });
+    res
+      .status(200)
+      .json({ success: true, message: "Status updated successfully." });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});

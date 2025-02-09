@@ -1,14 +1,11 @@
-import type { Metadata } from "next";
+"use client";
+
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { SocketProvider } from "../context/SocketContext"; // Updated import path
 
 const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "Chat Application",
-  description: "A real-time chat application",
-};
 
 export default function RootLayout({
   children,
@@ -18,7 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <SocketProvider>{children}</SocketProvider>
+        </AuthProvider>
       </body>
     </html>
   );
