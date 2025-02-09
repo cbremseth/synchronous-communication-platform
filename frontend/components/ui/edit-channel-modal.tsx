@@ -37,6 +37,7 @@ interface EditChannelModalProps {
     channelId: string,
     updates: { name: string; users: string[] },
   ) => void;
+  onArchive: (channelId: string) => void;
   channel: Channel;
   currentUser: { userID: string; username: string } | null;
 }
@@ -45,6 +46,7 @@ export function EditChannelModal({
   isOpen,
   onClose,
   onSave,
+  onArchive,
   channel,
   currentUser,
 }: EditChannelModalProps) {
@@ -177,7 +179,16 @@ export function EditChannelModal({
             </div>
           </div>
         </div>
-
+        <Button
+          variant="destructive"
+          onClick={() => {
+            onArchive(channel._id);
+            onClose();
+          }}
+          className="mt-4"
+        >
+          Delete Channel
+        </Button>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
