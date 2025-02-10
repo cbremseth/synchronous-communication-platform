@@ -12,6 +12,7 @@ import { EditChannelModal } from "@/components/ui/edit-channel-modal";
 interface Channel {
   _id: string;
   name: string;
+  active: boolean;
   users: Array<{
     _id: string;
     username: string;
@@ -116,6 +117,34 @@ export default function Sidebar() {
     }
   };
 
+  const handleArchiveChannel = async (channelId: string) => {
+    if (!user?.userID) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:5001/api/channels/${channelId}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ active: false }), // Use active: false to archive
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to archive channel");
+
+      const { channel } = await response.json();
+      setChannels((prev) =>
+        prev.map((ch) => (ch._id === channelId ? channel : ch)),
+      );
+    } catch (err) {
+      console.error(err);
+      setError("Error archiving channel");
+    }
+  };
+
+  const activeChannels = channels.filter((channel) => channel.active);
   return (
     <div className="h-full ring-2 ring-white text-white p-4 mx-4 my-4 flex flex-col rounded-lg">
       <div className="flex justify-between items-center">
@@ -144,8 +173,8 @@ export default function Sidebar() {
       {error && <p className="text-red-500 mt-2">{error}</p>}
 
       <div className="h-1/2 overflow-y-auto mt-4 space-y-2">
-        {channels.length > 0
-          ? channels.map((channel) => (
+        {activeChannels.length > 0
+          ? activeChannels.map((channel) => (
               <Card
                 key={channel._id}
                 className="p-2 cursor-pointer bg-gray-700 hover:bg-gray-600"
@@ -184,6 +213,7 @@ export default function Sidebar() {
           isOpen={!!editingChannel}
           onClose={() => setEditingChannel(null)}
           onSave={handleUpdateChannel}
+          onArchive={handleArchiveChannel}
           channel={editingChannel}
           currentUser={user}
         />

@@ -9,6 +9,7 @@ import { config } from "dotenv";
 config({ path: "../.env" });
 import { createServer } from "http";
 import { Server } from "socket.io";
+import seedUsers from "./seed.js"; // Import the seed function
 
 const app = express();
 
@@ -22,6 +23,7 @@ mongoose
     authSource: "admin",
   })
   .then(() => console.log("Connected to MongoDB"))
+  .then(() => seedUsers())
   .catch((err) => console.error("Error connecting to MongoDB:", err));
 
 app.get("/", (req, res) => {
