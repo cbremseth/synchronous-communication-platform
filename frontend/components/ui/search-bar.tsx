@@ -30,12 +30,16 @@ export default function SearchBar({
     <div className="flex flex-col gap-2">
       {/* Search Input */}
       <div className="flex items-center gap-2 bg-white dark:bg-gray-900 p-2 rounded-md shadow">
-        <Input
-          className="flex-1 border border-gray-300 dark:border-gray-700 px-3 py-2 rounded-md text-sm"
-          placeholder="Search users or messages..."
-          value={query}
-          onChange={handleChange}
-        />
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <Input
+            className="w-full border border-gray-300 dark:border-gray-700 px-10 py-2 rounded-md text-sm"
+            placeholder="Search users or messages..."
+            value={query}
+            onChange={handleChange}
+          />
+        </div>
+
         <Button className="ml-2" onClick={() => onSearch(query)}>
           Search
         </Button>
@@ -43,7 +47,7 @@ export default function SearchBar({
 
       {/* Search Results */}
       {(userResults.length > 0 || messageResults.length > 0) && (
-        <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded-md shadow-md">
+        <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded-md shadow-md max-h-40 overflow-y-auto">
           {/* User Profiles */}
           {userResults.length > 0 && (
             <div className="mb-2">

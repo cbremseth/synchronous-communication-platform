@@ -83,31 +83,31 @@ export default function Chat({
     }
   }, [channelId, roomName, user]);
 
-// Function to handle search functionality in searchbar
-const handleSearch = async (query: string) => {
-  console.log("Search query:", query);
+  // Function to handle search functionality in searchbar
+  const handleSearch = async (query: string) => {
+    console.log("Search query:", query);
 
-  if (!query.trim()) {
-    setUserResults([]);
-    setMessageResults([]);
-    return;
-  }
+    if (!query.trim()) {
+      setUserResults([]);
+      setMessageResults([]);
+      return;
+    }
 
-  try {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`,
-    );
-    if (!response.ok) throw new Error("Failed to fetch search results");
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`,
+      );
+      if (!response.ok) throw new Error("Failed to fetch search results");
 
-    const data = await response.json();
-    setUserResults(data.users || []);
-    setMessageResults(data.messages || []);
-  } catch (error) {
-    console.error("Error searching:", error);
-    setUserResults([]);
-    setMessageResults([]);
-  }
-};
+      const data = await response.json();
+      setUserResults(data.users || []);
+      setMessageResults(data.messages || []);
+    } catch (error) {
+      console.error("Error searching:", error);
+      setUserResults([]);
+      setMessageResults([]);
+    }
+  };
 
   function onClick(message: string) {
     if (!user || !currentChannelId || message.trim() === "") return;
@@ -248,7 +248,7 @@ const handleSearch = async (query: string) => {
             userResults={userResults}
             messageResults={messageResults}
           />
-          </div>
+        </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
           <h1 className="text-lg font-semibold">{roomName}</h1>
