@@ -478,32 +478,32 @@ app.delete("/api/users/:id", async (req, res) => {
   }
 });
 
-io.on("connection", (socket) => {
-  socket.on("join_channel", async (channelId) => {
-    try {
-      const channel = await Channel.findById(channelId).populate({
-        path: "users",
-        select: "_id username status",
-      });
+// io.on("connection", (socket) => {
+//   socket.on("join_channel", async (channelId) => {
+//     try {
+//       const channel = await Channel.findById(channelId).populate({
+//         path: "users",
+//         select: "_id username status",
+//       });
 
-      if (!channel) return;
+//       if (!channel) return;
 
-      const participants = channel.users.map((user) => ({
-        id: user._id,
-        username: user.username,
-        status: user.status,
-      }));
+//       const participants = channel.users.map((user) => ({
+//         id: user._id,
+//         username: user.username,
+//         status: user.status,
+//       }));
 
-      socket.join(channelId);
-      socket.emit("channel_participants", participants);
-    } catch (error) {
-      socket.emit("error", {
-        message: "Error joining channel",
-        error: error.message,
-      });
-    }
-  });
-});
+//       socket.join(channelId);
+//       socket.emit("channel_participants", participants);
+//     } catch (error) {
+//       socket.emit("error", {
+//         message: "Error joining channel",
+//         error: error.message,
+//       });
+//     }
+//   });
+// });
 
 app.put("/api/users/:id/status", async (req, res) => {
   const userId = req.params.id;
