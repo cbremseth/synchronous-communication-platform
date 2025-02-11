@@ -92,11 +92,14 @@ export default function Chat({
       setMessageResults([]);
       return;
     }
+    // Use API URL dynamically based on whether the app is running inside Docker or locally
+    const apiBaseUrl =
+    typeof window !== "undefined" && window.location.hostname === "localhost"
+      ? "http://localhost:5001"
+      : process.env.NEXT_PUBLIC_API_URL;
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`,
-      );
+      const response = await fetch(`${apiBaseUrl}/api/searchbar?query=${query}`);
       if (!response.ok) throw new Error("Failed to fetch search results");
 
       const data = await response.json();
