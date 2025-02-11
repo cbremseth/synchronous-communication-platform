@@ -31,6 +31,20 @@ interface MessageProps {
   senderName: string;
 }
 
+// Interfaces for search results: Users
+interface UserResult {
+  _id: string;
+  username: string;
+  email: string;
+}
+
+// Interface for search results: Messages
+interface MessageResult {
+  _id: string;
+  content: string;
+  senderName: string;
+}
+
 export default function Chat({
   roomName = "General Chat",
   channelId,
@@ -43,7 +57,8 @@ export default function Chat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [userResults, setUserResults] = useState<UserResult[]>([]);
+  const [messageResults, setMessageResults] = useState<MessageResult[]>([]);
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
@@ -68,16 +83,31 @@ export default function Chat({
     }
   }, [channelId, roomName, user]);
 
-  const handleSearch = (query: string) => {
-    console.log("Search query:", query);
+// Function to handle search functionality in searchbar
+const handleSearch = async (query: string) => {
+  console.log("Search query:", query);
 
-    // Filter messages that match the query
-    const results = messages.filter((msg) =>
-      msg.content.toLowerCase().includes(query.toLowerCase()),
+  if (!query.trim()) {
+    setUserResults([]);
+    setMessageResults([]);
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/searchbar?query=${query}`,
     );
+    if (!response.ok) throw new Error("Failed to fetch search results");
 
-    setSearchResults(results);
-  };
+    const data = await response.json();
+    setUserResults(data.users || []);
+    setMessageResults(data.messages || []);
+  } catch (error) {
+    console.error("Error searching:", error);
+    setUserResults([]);
+    setMessageResults([]);
+  }
+};
 
   function onClick(message: string) {
     if (!user || !currentChannelId || message.trim() === "") return;
@@ -211,24 +241,14 @@ export default function Chat({
 
       {/* Main Chat Window */}
       <div className="flex-1 flex flex-col h-screen">
-        {/* Search Bar */}
-        <div className="flex-none">
-          <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
-
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-              <h2 className="text-sm font-semibold">Search Results:</h2>
-              <ul className="list-disc pl-5">
-                {searchResults.map((result) => (
-                  <li key={result._id} className="text-sm">
-                    {result.senderName}: {result.content}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
+        <div className="w-full max-w-md mx-auto">
+          {/* Search Bar */}
+          <SearchBar
+            onSearch={handleSearch}
+            userResults={userResults}
+            messageResults={messageResults}
+          />
+          </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
           <h1 className="text-lg font-semibold">{roomName}</h1>
