@@ -11,6 +11,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
+import MessageReactions from "@/components/ui/message-reactions";
+import { socket_path } from "@/lib/socket";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -29,6 +31,8 @@ interface MessageProps {
   message: string;
   sender: string;
   senderName: string;
+  messageId: string;
+  reactions: { [emoji: string]: string[] };
 }
 
 // Interfaces for search results: Users
@@ -185,6 +189,21 @@ export default function Chat({
     };
   }, [user, isAuthenticated, isLoading, currentChannelId]);
 
+   // Listen for reaction updates
+   useEffect(() => {
+    socket_path.on("reaction_updated", ({ messageId, reactions }) => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg._id === messageId ? { ...msg, reactions } : msg
+        )
+      );
+    });
+
+    return () => {
+      socket_path.off("reaction_updated");
+    };
+  }, []);
+
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -207,7 +226,7 @@ export default function Chat({
     return null;
   }
 
-  const ReceivedMessage = ({ message, senderName }: MessageProps) => (
+  const ReceivedMessage = ({ message, senderName, messageId, reactions }: MessageProps) => (
     <div className="flex items-end space-x-2">
       <Avatar className="bg-gray-100 dark:bg-gray-800">
         <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
@@ -216,6 +235,7 @@ export default function Chat({
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
           <p className="text-sm">{message}</p>
+          <MessageReactions messageId={messageId} reactions={reactions || {}} />
         </div>
       </div>
     </div>

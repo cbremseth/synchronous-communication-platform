@@ -25,6 +25,13 @@ const messageSchema = new mongoose.Schema({
     default: Date.now,
     index: true,
   },
+
+  // Reactions - Map of emoji -> array of user IDs
+  reactions: {
+    type: Map,
+    of: [String],
+    default: {}
+  }
 });
 
 // Compound index for efficient message retrieval in a channel
