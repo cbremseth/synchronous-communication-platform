@@ -31,6 +31,13 @@ const userSchema = new mongoose.Schema({
   },
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  sentRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  status: {
+    type: String,
+    enum: ["online", "offline", "busy", "away"],
+    default: "online",
+  },
 });
 
 // Hash password before saving
@@ -54,6 +61,9 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
     throw new Error("Password comparison failed", error);
   }
 };
+
+// Create a text index on username and email for fast search
+userSchema.index({ username: "text", email: "text" });
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);
 export default User;

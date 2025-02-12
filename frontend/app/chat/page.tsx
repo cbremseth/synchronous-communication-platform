@@ -8,6 +8,9 @@ import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
+import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
+import NavBar from "../navBar";
+import { useRouter } from "next/navigation";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -18,6 +21,8 @@ interface Message {
   sender: string;
   senderName: string;
   timestamp?: string;
+  isEditing?: boolean;
+  channelId: string;
 }
 
 interface MessageProps {
@@ -26,71 +31,145 @@ interface MessageProps {
   senderName: string;
 }
 
+// Interfaces for search results: Users
+interface UserResult {
+  _id: string;
+  username: string;
+  email: string;
+}
+
+// Interface for search results: Messages
+interface MessageResult {
+  _id: string;
+  content: string;
+  senderName: string;
+}
+
 export default function Chat({
   roomName = "General Chat",
+  channelId,
 }: {
   roomName?: string;
+  channelId?: string;
 }) {
+  const router = useRouter();
   const { user, isLoading, isAuthenticated } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [searchResults, setSearchResults] = useState<Message[]>([]);
+  const [userResults, setUserResults] = useState<UserResult[]>([]);
+  const [messageResults, setMessageResults] = useState<MessageResult[]>([]);
+  const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
+    channelId,
+  );
 
-  const handleSearch = (query: string) => {
+  // Add function to fetch general channel
+  const fetchGeneralChannel = async () => {
+    try {
+      if (!user) return;
+      const generalChannel = await getOrCreateGeneralChannel(user.userID);
+      console.log("generalChannel", generalChannel);
+      setCurrentChannelId(generalChannel._id);
+    } catch (error) {
+      console.error("Error fetching general channel:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (!channelId && roomName === "General Chat") {
+      fetchGeneralChannel();
+    } else {
+      setCurrentChannelId(channelId);
+    }
+  }, [channelId, roomName, user]);
+
+  // Function to handle search functionality in searchbar
+  const handleSearch = async (query: string) => {
     console.log("Search query:", query);
 
-    // Filter messages that match the query
-    const results = messages.filter((msg) =>
-      msg.content.toLowerCase().includes(query.toLowerCase()),
-    );
+    if (!query.trim()) {
+      setUserResults([]);
+      setMessageResults([]);
+      return;
+    }
+    // Use API URL dynamically based on whether the app is running inside Docker or locally
+    const apiBaseUrl =
+      typeof window !== "undefined" && window.location.hostname === "localhost"
+        ? "http://localhost:5001"
+        : process.env.NEXT_PUBLIC_API_URL;
 
-    setSearchResults(results);
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/api/searchbar?query=${query}`,
+      );
+      if (!response.ok) throw new Error("Failed to fetch search results");
+
+      const data = await response.json();
+      setUserResults(data.users || []);
+      setMessageResults(data.messages || []);
+    } catch (error) {
+      console.error("Error searching:", error);
+      setUserResults([]);
+      setMessageResults([]);
+    }
   };
 
   function onClick(message: string) {
-    if (!user || message.trim() === "") return;
+    if (!user || !currentChannelId || message.trim() === "") return;
 
     socket.emit("message", {
       content: message,
       sender: user.userID,
       senderName: user.username,
-      _id: crypto.randomUUID(),
+      channelId: currentChannelId,
     });
     setMessage("");
   }
 
   useEffect(() => {
+    console.log("Auth state:", { user, isLoading, isAuthenticated });
     if (!isLoading && !isAuthenticated) {
-      window.location.href = "/signin";
+      console.log("isLoading:", isLoading);
+      console.log("isAuthenticated:", isAuthenticated);
+      router.push("/signin");
       return;
     }
 
-    if (!user) return;
+    if (!user || !currentChannelId) return;
 
     // Ensure socket is connected
     if (!socket.connected) {
       socket.connect();
     }
 
-    // Connection listener
-    socket.on("connect", () => {
-      console.log("Connected to socket with user:", user.username);
-      // Request message history when connected
-      socket.emit("get_message_history");
-    });
+    // Clear messages when switching channels
+    setMessages([]);
+
+    // Join the channel
+    socket.emit("join_channel", currentChannelId);
 
     // Add message history listener
     socket.on("message_history", (history: Message[]) => {
       console.log("Received message history:", history);
       setMessages(history);
-      // Turn off message history listener
-      socket.off("message_history");
     });
 
     // Message listener for new messages
     socket.on("message", (message: Message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+      if (message.channelId === currentChannelId) {
+        setMessages((prevMessages) => [...prevMessages, message]);
+      }
+    });
+
+    // Add new socket listener for message updates
+    socket.on("messageUpdated", (updatedMessage: Message) => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg._id === updatedMessage._id
+            ? { ...msg, content: updatedMessage.content }
+            : msg,
+        ),
+      );
     });
 
     // Immediately request message history if already connected
@@ -104,7 +183,7 @@ export default function Chat({
       socket.off("message");
       socket.off("message_history");
     };
-  }, [user, isAuthenticated, isLoading]);
+  }, [user, isAuthenticated, isLoading, currentChannelId]);
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -156,51 +235,24 @@ export default function Chat({
     </div>
   );
 
-  // const SearchResult = () => (
-  //   <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-  //     <h2 className="text-sm font-semibold mb-2">Search Results:</h2>
-  //     {searchResults.length > 0 ? (
-  //       <ul className="list-none space-y-1">
-  //         {searchResults.map((result) => (
-  //           <li key={result._id} className="text-sm">
-  //             {result.sender}
-  //           </li>
-  //         ))}
-  //       </ul>
-  //     ) : (
-  //       <p className="text-gray-500 text-sm">No results found.</p>
-  //     )}
-  //   </div>
-  // );
-
   return (
-    <div className="flex w-full h-screen overflow-hidden">
+    <div className="flex w-full h-screen">
       {/* Sidebar */}
-      <div className="w-64 h-full bg-gradient-to-t from-violet-500 to-fuchsia-500">
+      <div className="w-64 h-screen bg-gradient-to-t from-violet-500 to-fuchsia-500">
         <Sidebar />
       </div>
 
       <div className="w-[5px] bg-gray-600"></div>
 
       {/* Main Chat Window */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Search Bar */}
-        <div className="flex-none">
-          <SearchBar placeholder="Search messages..." onSearch={handleSearch} />
-
-          {/* Search Results */}
-          {searchResults.length > 0 && (
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 mt-2">
-              <h2 className="text-sm font-semibold">Search Results:</h2>
-              <ul className="list-disc pl-5">
-                {searchResults.map((result) => (
-                  <li key={result._id} className="text-sm">
-                    {result.senderName}: {result.content}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+      <div className="flex-1 flex flex-col h-screen">
+        <div className="w-full max-w-md mx-auto">
+          {/* Search Bar */}
+          <SearchBar
+            onSearch={handleSearch}
+            userResults={userResults}
+            messageResults={messageResults}
+          />
         </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
@@ -209,13 +261,7 @@ export default function Chat({
             <span className="text-sm text-gray-600">
               Welcome, {user.username}!
             </span>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => (window.location.href = "/signin")}
-            >
-              Sign Out
-            </Button>
+            <NavBar />
           </div>
         </header>
 
