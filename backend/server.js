@@ -10,6 +10,9 @@ config({ path: "../.env" });
 import { createServer } from "http";
 import { Server } from "socket.io";
 import seedUsers from "./seed.js"; // Import the seed function
+import path from "path";
+import fs from "fs";
+import multer from "multer";
 
 const app = express();
 
@@ -479,3 +482,66 @@ app.delete("/api/users/:id", async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
+const UPLOADS_DIR = path.join(__dirname, "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+// Set up Multer storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, UPLOADS_DIR); // Save files in `uploads/` directory
+  },
+  filename: (req, file, cb) => {
+    cb(null, file.originalname); // Keep the original filename
+  },
+});
+
+const upload = multer({ storage });
+
+// API Route to handle file upload
+app.post("/api/upload", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    const { sender, senderName, channelId } = req.body;
+
+    if (!sender || !senderName || !channelId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const fileUrl = `/uploads/${req.file.filename}`;
+
+    // Save the file in MongoDB (only path, not the actual file)
+    const message = new Message({
+      sender,
+      senderName,
+      channelId,
+      fileUrl,
+      content: "", // Empty text since it's a file message
+    });
+
+    await message.save();
+
+    // Emit socket event to notify users about the uploaded file
+    io.to(channelId).emit("message", {
+      _id: message._id.toString(),
+      sender,
+      senderName,
+      channelId,
+      fileUrl,
+      content: "",
+    });
+
+    res.status(200).json({ message: "File uploaded successfully", fileUrl });
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Serve uploaded files statically for local development
+app.use("/uploads", express.static(UPLOADS_DIR));

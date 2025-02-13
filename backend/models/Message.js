@@ -25,6 +25,10 @@ const messageSchema = new mongoose.Schema({
     default: Date.now,
     index: true,
   },
+  fileURL: {
+    type: String,
+    default: null,
+  },
 });
 
 // Compound index for efficient message retrieval in a channel
