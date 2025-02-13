@@ -342,6 +342,7 @@ io.on("connection", async (socket) => {
         senderName: msg.sender ? msg.sender.username : "Deleted User",
         channelId: msg.channelId.toString(),
         timestamp: msg.timestamp,
+        reactions: msg.reactions,
       }));
 
       socket.emit("message_history", formattedMessages);
@@ -430,6 +431,15 @@ io.on("connection", async (socket) => {
       if (!message) {
         console.error("Message not found:", messageId);
         return;
+      }
+
+      // Initialize reactions as object
+      if (!message.reactions) {
+        message.reactions = {};
+      }
+      // Initialize pair of emoji key, value
+      if (!message.reactions[emoji]) {
+        message.reactions[emoji] = { count: 0, users: [] };
       }
 
       // Initialize reactions if it doesn't exist

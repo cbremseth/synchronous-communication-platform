@@ -31,8 +31,9 @@ const messageSchema = new mongoose.Schema({
     type: Map,
     of: {
       count: { type: Number, default: 0 },
-      users: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+      users: [{ type: mongoose.Schema.Types.ObjectId, default: [] }],
     },
+    default: {},
   },
 });
 
