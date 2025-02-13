@@ -163,7 +163,9 @@ export default function Sidebar() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={createNewChannel}
-        currentUser={user ? { userID: user.userID, username: user.username } : null}
+        currentUser={
+          user ? { userID: user.userID, username: user.username } : null
+        }
       />
 
       {/* Show loading state */}
@@ -215,7 +217,9 @@ export default function Sidebar() {
           onSave={handleUpdateChannel}
           onArchive={handleArchiveChannel}
           channel={editingChannel}
-          currentUser={user ? { userID: user.userID, username: user.username } : null}
+          currentUser={
+            user ? { userID: user.userID, username: user.username } : null
+          }
         />
       )}
 

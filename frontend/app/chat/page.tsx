@@ -128,16 +128,16 @@ export default function Chat({
   useEffect(() => {
     // Check for message ID in URL query params
     const urlParams = new URLSearchParams(window.location.search);
-    const highlightMessageId = urlParams.get('highlight');
-    
+    const highlightMessageId = urlParams.get("highlight");
+
     if (highlightMessageId && messages.length > 0) {
       // Small delay to ensure the message elements are rendered
       setTimeout(() => {
         scrollToMessage(highlightMessageId);
       }, 100);
-      
+
       // Clean up the URL without triggering a navigation
-      window.history.replaceState({}, '', `/chat/${currentChannelId}`);
+      window.history.replaceState({}, "", `/chat/${currentChannelId}`);
     }
   }, [messages, currentChannelId]); // Depend on messages and channelId
 
@@ -151,7 +151,8 @@ export default function Chat({
 
     // Extract mentions from message
     const mentionRegex = /@(\w+)/g;
-    const mentions = message.match(mentionRegex)?.map(m => m.substring(1)) || [];
+    const mentions =
+      message.match(mentionRegex)?.map((m) => m.substring(1)) || [];
 
     socket.emit("message", {
       content: message,
@@ -295,12 +296,14 @@ export default function Chat({
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg) => {
             const isSentByUser = msg.sender === user?.userID;
-            const MessageComponent = isSentByUser ? SentMessage : ReceivedMessage;
+            const MessageComponent = isSentByUser
+              ? SentMessage
+              : ReceivedMessage;
 
             return (
               <div
                 key={msg._id}
-                ref={el => {
+                ref={(el) => {
                   if (el) messageRefs.current[msg._id] = el;
                 }}
                 className="p-2"

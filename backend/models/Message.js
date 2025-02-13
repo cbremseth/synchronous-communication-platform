@@ -20,10 +20,12 @@ const messageSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
-  mentions: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
-  }],
+  mentions: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
   timestamp: {
     type: Date,
     default: Date.now,

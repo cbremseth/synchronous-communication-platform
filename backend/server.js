@@ -372,14 +372,15 @@ io.on("connection", async (socket) => {
 
       // Extract mentions from message content
       const mentionRegex = /@(\w+)/g;
-      const mentionedUsernames = content.match(mentionRegex)?.map(m => m.substring(1)) || [];
+      const mentionedUsernames =
+        content.match(mentionRegex)?.map((m) => m.substring(1)) || [];
 
       // Find mentioned users
       const mentionedUsers = await User.find({
-        username: { $in: mentionedUsernames }
+        username: { $in: mentionedUsernames },
       });
 
-      const mentionedUserIds = mentionedUsers.map(user => user._id);
+      const mentionedUserIds = mentionedUsers.map((user) => user._id);
 
       // Save message to database with channelId and mentions
       const newMessage = new Message({
@@ -395,18 +396,16 @@ io.on("connection", async (socket) => {
       // Get all sockets in the channel and their user IDs
       const socketsInChannel = await io.in(channelId).fetchSockets();
       const usersInChannel = new Set(
-        socketsInChannel
-          .map(socket => socket.userId)
-          .filter(Boolean)
+        socketsInChannel.map((socket) => socket.userId).filter(Boolean),
       );
 
-      console.log('Users currently in channel:', Array.from(usersInChannel));
-      console.log('Sender:', sender);
+      console.log("Users currently in channel:", Array.from(usersInChannel));
+      console.log("Sender:", sender);
 
       // Create notifications for all mentioned users (regardless of channel presence)
       const notifications = mentionedUsers
-        .filter(user => user._id.toString() !== sender) // Only filter out the sender
-        .map(user => ({
+        .filter((user) => user._id.toString() !== sender) // Only filter out the sender
+        .map((user) => ({
           recipient: user._id,
           type: "mention",
           channelId,
@@ -415,27 +414,31 @@ io.on("connection", async (socket) => {
         }));
 
       // Get all users who should receive channel notifications (only offline users)
-      const channelUserIds = channel.users.map(id => id.toString());
-      const offlineUsers = channelUserIds.filter(userId => {
+      const channelUserIds = channel.users.map((id) => id.toString());
+      const offlineUsers = channelUserIds.filter((userId) => {
         const isInChannel = usersInChannel.has(userId);
         const isSender = userId === sender;
-        const isMentioned = mentionedUsers.some(user => user._id.toString() === userId);
-        console.log(`Checking user ${userId}: in channel? ${isInChannel}, is sender? ${isSender}, is mentioned? ${isMentioned}`);
+        const isMentioned = mentionedUsers.some(
+          (user) => user._id.toString() === userId,
+        );
+        console.log(
+          `Checking user ${userId}: in channel? ${isInChannel}, is sender? ${isSender}, is mentioned? ${isMentioned}`,
+        );
         // Don't send regular message notification if user is in channel, is sender, or was mentioned
         return !isInChannel && !isSender && !isMentioned;
       });
 
-      console.log('Users to notify for regular messages:', offlineUsers);
+      console.log("Users to notify for regular messages:", offlineUsers);
 
       // Add notifications for offline users (regular messages)
       notifications.push(
-        ...offlineUsers.map(userId => ({
+        ...offlineUsers.map((userId) => ({
           recipient: userId,
           type: "message",
           channelId,
           messageId: newMessage._id,
           sender,
-        }))
+        })),
       );
 
       if (notifications.length > 0) {
@@ -443,7 +446,7 @@ io.on("connection", async (socket) => {
         const savedNotifications = await Notification.insertMany(notifications);
 
         // Emit notifications to relevant users
-        savedNotifications.forEach(notification => {
+        savedNotifications.forEach((notification) => {
           io.to(notification.recipient.toString()).emit("notification", {
             _id: notification._id,
             type: notification.type,
@@ -601,12 +604,14 @@ app.patch("/api/notifications/read", async (req, res) => {
   try {
     const { notificationIds } = req.body;
     if (!notificationIds || !Array.isArray(notificationIds)) {
-      return res.status(400).json({ error: "Notification IDs array is required" });
+      return res
+        .status(400)
+        .json({ error: "Notification IDs array is required" });
     }
 
     await Notification.updateMany(
       { _id: { $in: notificationIds } },
-      { $set: { read: true } }
+      { $set: { read: true } },
     );
 
     res.json({ message: "Notifications marked as read" });
