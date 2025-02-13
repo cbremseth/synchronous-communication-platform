@@ -24,13 +24,15 @@ export default function MessageReactions({
   messageId,
   reactions,
   onReact,
-  getReactionDetails
+  getReactionDetails,
 }: MessageReactionsProps) {
   const { user } = useAuth();
   const [localReactions, setLocalReactions] = useState(reactions);
   const [showPicker, setShowPicker] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [reactionDetails, setReactionDetails] = useState<{ [emoji: string]: { count: number; users: string[] } }>({});
+  const [reactionDetails, setReactionDetails] = useState<{
+    [emoji: string]: { count: number; users: string[] };
+  }>({});
   const [loadingDetails, setLoadingDetails] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const detailsRef = useRef<HTMLDivElement>(null);
@@ -57,7 +59,6 @@ export default function MessageReactions({
       getReactionDetails(messageId).then(setLocalReactions);
     }
   }, [showDetails]);
-
 
   // Toggle emoji picker
   const togglePicker = () => setShowPicker((prev) => !prev);
@@ -206,7 +207,9 @@ export default function MessageReactions({
               <div key={emoji} className="py-1">
                 <div className="flex justify-between items-center">
                   <span>{emoji}</span>
-                  <span className="text-xs text-gray-600">{data.count} reacted</span>
+                  <span className="text-xs text-gray-600">
+                    {data.count} reacted
+                  </span>
                 </div>
                 <ul className="text-xs text-gray-500">
                   {data.users.map((username, index) => (

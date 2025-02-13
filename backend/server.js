@@ -464,7 +464,6 @@ io.on("connection", async (socket) => {
       await message.save();
       console.log("Updated Reactions:", Object.fromEntries(message.reactions));
 
-
       // Emit only to users in the same channel
       io.to(message.channelId.toString()).emit("reaction_updated", {
         messageId,
@@ -552,7 +551,7 @@ app.post("/api/reactionDetails/:messageId", async (req, res) => {
     for (const [emoji, { count, users }] of message.reactions.entries()) {
       const userObjects = await User.find(
         { _id: { $in: users } },
-        { username: 1, _id: 0 }
+        { username: 1, _id: 0 },
       );
 
       reactionDetails[emoji] = {
@@ -562,7 +561,6 @@ app.post("/api/reactionDetails/:messageId", async (req, res) => {
     }
     res.json({ reactionDetails });
     console.log("Reaction Details:", reactionDetails);
-
   } catch (error) {
     console.error("Error fetching reaction details:", error);
     res.status(500).json({ error: "Internal server error" });

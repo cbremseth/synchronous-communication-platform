@@ -17,9 +17,9 @@ const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
 // Use API URL dynamically based on whether the app is running inside Docker or locally
 const API_BASE_URL =
-typeof window !== "undefined" && window.location.hostname === "localhost"
-  ? "http://localhost:5001"
-  : process.env.NEXT_PUBLIC_API_URL;
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:5001"
+    : process.env.NEXT_PUBLIC_API_URL;
 
 interface Message {
   _id: string;
@@ -245,31 +245,34 @@ export default function Chat({
   };
 
   // Fetch reaction details for a message
-const getReactionDetails = async (messageId: string) => {
-  try {
-    if (!messageId) {
-      console.error("Invalid messageId:", messageId);
+  const getReactionDetails = async (messageId: string) => {
+    try {
+      if (!messageId) {
+        console.error("Invalid messageId:", messageId);
+        return {};
+      }
+
+      console.log("Fetching reactions for messageId:", messageId);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reactionDetails/${messageId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch reaction details");
+      }
+
+      const data = await response.json();
+      return data.reactionDetails;
+    } catch (error) {
+      console.error("Error fetching reaction details:", error);
       return {};
     }
-
-    console.log("Fetching reactions for messageId:", messageId);
-
-    const response = await fetch(`${API_BASE_URL}/api/reactionDetails/${messageId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch reaction details");
-    }
-
-    const data = await response.json();
-    return data.reactionDetails;
-  } catch (error) {
-    console.error("Error fetching reaction details:", error);
-    return {};
-  }
-};
+  };
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
