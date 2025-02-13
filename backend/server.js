@@ -433,10 +433,6 @@ io.on("connection", async (socket) => {
         return;
       }
 
-      // Initialize reactions as object
-      if (!message.reactions) {
-        message.reactions = {};
-      }
       // Initialize pair of emoji key, value
       if (!message.reactions[emoji]) {
         message.reactions[emoji] = { count: 0, users: [] };
