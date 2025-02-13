@@ -29,7 +29,7 @@ const messageSchema = new mongoose.Schema({
   // Reactions - Map of emoji -> array of user IDs
   reactions: {
     type: Map,
-    of: [String],
+    of: [mongoose.Schema.Types.ObjectId],
     default: {}
   }
 });

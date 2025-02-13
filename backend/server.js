@@ -302,6 +302,64 @@ app.get("/api/channels/:id", async (req, res) => {
   }
 });
 
+// PATCH request to update reactions on a specific message
+app.patch("/api/messages/:id/reactions", async (req, res) => {
+  try {
+    const { id } = req.params; // Message ID from the URL
+    const { emoji, userId } = req.body; // Emoji and User ID from the request body
+
+    if (!emoji || !userId) {
+      return res.status(400).json({ error: "Emoji and User ID are required" });
+    }
+
+    // Find the message by its ID
+    const message = await Message.findById(id);
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Initialize reactions object if it doesn't exist
+    if (!message.reactions) {
+      message.reactions = {};
+    }
+
+    // If the emoji doesn't exist, initialize it with an empty array
+    if (!message.reactions[emoji]) {
+      message.reactions[emoji] = [];
+    }
+
+    const usersReacted = message.reactions[emoji];
+    const userIndex = usersReacted.indexOf(userId);
+
+    // Add or remove the reaction
+    if (userIndex === -1) {
+      // Add reaction if user hasn't already reacted
+      usersReacted.push(userId);
+    } else {
+      // Remove reaction if user already reacted
+      usersReacted.splice(userIndex, 1);
+      if (usersReacted.length === 0) {
+        // If no users reacted with this emoji, remove it
+        delete message.reactions[emoji];
+      }
+    }
+
+    // Save the updated message with reactions
+    await message.save();
+
+    // Emit the updated reactions to clients in the same channel
+    io.to(message.channelId.toString()).emit("reaction_updated", {
+      messageId: id,
+      reactions: message.reactions,
+    });
+
+    res.json({ message: "Reaction updated", reactions: message.reactions });
+  } catch (error) {
+    console.error("Error updating reaction:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 const PORT = process.env.BACKEND_PORT || 5001;
 
 const httpServer = createServer(app);
@@ -385,42 +443,6 @@ io.on("connection", async (socket) => {
       io.to(channelId).emit("message", messageToSend);
     } catch (error) {
       console.error("Error saving/sending message:", error);
-    }
-  });
-
-  // ✅ Listen for new reactions and update the database
-  socket.on("add_reaction", async ({ messageId, emoji, userId }) => {
-    try {
-      const message = await Message.findById(messageId);
-      if (!message) return;
-
-      // Ensure the reactions Map exists
-      if (!message.reactions.has(emoji)) {
-        message.reactions.set(emoji, []);
-      }
-
-      const usersReacted = message.reactions.get(emoji);
-      const userIndex = usersReacted.indexOf(userId);
-
-      if (userIndex === -1) {
-        usersReacted.push(userId);
-      } else {
-        usersReacted.splice(userIndex, 1);
-        if (usersReacted.length === 0) {
-          message.reactions.delete(emoji);
-        }
-      }
-
-      await message.save();
-
-      // ✅ Emit the updated reactions in real-time
-      io.to(message.channelId.toString()).emit("reaction_updated", {
-        messageId,
-        reactions: Object.fromEntries(message.reactions),
-      });
-
-    } catch (error) {
-      console.error("Error updating reaction:", error);
     }
   });
 
@@ -516,62 +538,3 @@ app.delete("/api/users/:id", async (req, res) => {
   }
 });
 
-// API fallback route for updating reactions for messages
-// if socket.io route is not found or user is offline
-app.patch("/api/messages/:id/reactions", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { emoji, userId } = req.body;
-
-    if (!emoji || !userId) {
-      return res.status(400).json({ error: "Emoji and User ID are required" });
-    }
-
-    const message = await Message.findById(id);
-    if (!message) {
-      return res.status(404).json({ error: "Message not found" });
-    }
-
-    // Ensure reactions exist
-    if (!message.reactions) {
-      message.reactions = new Map();
-    }
-
-    // Ensure emoji exists as a key in reactions
-    if (!message.reactions.has(emoji)) {
-      message.reactions.set(emoji, []);
-    }
-
-    const usersReacted = message.reactions.get(emoji);
-
-    // Ensure all stored user IDs are strings
-    const userIndex = usersReacted.indexOf(userId.toString());
-
-    if (userIndex === -1) {
-      // ✅ Add reaction (convert userId to string)
-      usersReacted.push(userId.toString());
-    } else {
-      // ❌ Remove reaction if user already reacted
-      usersReacted.splice(userIndex, 1);
-      if (usersReacted.length === 0) {
-        message.reactions.delete(emoji);
-      }
-    }
-
-    // Convert reactions Map to plain object before saving
-    message.reactions = Object.fromEntries(message.reactions);
-
-    await message.save();
-
-    // Broadcast update to all users in the channel
-    io.to(message.channelId.toString()).emit("reaction_updated", {
-      messageId: id,
-      reactions: message.reactions,
-    });
-
-    res.json({ message: "Reaction updated", reactions: message.reactions });
-  } catch (error) {
-    console.error("Error updating reaction:", error);
-    res.status(500).json({ error: "Server error" });
-  }
-});
