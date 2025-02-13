@@ -63,7 +63,6 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
-  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
 
   // Add function to fetch general channel
@@ -122,20 +121,30 @@ export default function Chat({
     const messageElement = messageRefs.current[messageId];
     if (messageElement) {
       messageElement.scrollIntoView({ behavior: "smooth", block: "center" });
-      setHighlightedMessageId(messageId);
-      // Remove highlight after 2 seconds
-      setTimeout(() => setHighlightedMessageId(null), 2000);
     }
   };
 
   // Add effect to handle message highlighting from URL
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash) {
-      const messageId = hash.slice(1); // Remove the # from the hash
-      scrollToMessage(messageId);
+    // Check for message ID in URL query params
+    const urlParams = new URLSearchParams(window.location.search);
+    const highlightMessageId = urlParams.get('highlight');
+    
+    if (highlightMessageId && messages.length > 0) {
+      // Small delay to ensure the message elements are rendered
+      setTimeout(() => {
+        scrollToMessage(highlightMessageId);
+      }, 100);
+      
+      // Clean up the URL without triggering a navigation
+      window.history.replaceState({}, '', `/chat/${currentChannelId}`);
     }
-  }, [messages]); // Depend on messages to ensure they're loaded
+  }, [messages, currentChannelId]); // Depend on messages and channelId
+
+  // Add scroll to bottom effect
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   function onClick(message: string) {
     if (!user || !currentChannelId || message.trim() === "") return;
@@ -212,16 +221,6 @@ export default function Chat({
       socket.off("message_history");
     };
   }, [user, isAuthenticated, isLoading, currentChannelId]);
-
-  // Add this new function to scroll to bottom
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  // Add effect to scroll on new messages
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   if (isLoading) {
     return (
@@ -304,11 +303,7 @@ export default function Chat({
                 ref={el => {
                   if (el) messageRefs.current[msg._id] = el;
                 }}
-                className={`${
-                  highlightedMessageId === msg._id
-                    ? "bg-yellow-100 dark:bg-yellow-900 rounded-lg transition-colors duration-500"
-                    : ""
-                }`}
+                className="p-2"
               >
                 <MessageComponent
                   message={msg.content}

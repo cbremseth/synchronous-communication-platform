@@ -403,14 +403,9 @@ io.on("connection", async (socket) => {
       console.log('Users currently in channel:', Array.from(usersInChannel));
       console.log('Sender:', sender);
 
-      // Create notifications only for mentioned users who are not in the channel
+      // Create notifications for all mentioned users (regardless of channel presence)
       const notifications = mentionedUsers
-        .filter(user => {
-          const userId = user._id.toString();
-          const isInChannel = usersInChannel.has(userId);
-          console.log(`Checking mentioned user ${userId}: in channel? ${isInChannel}`);
-          return !isInChannel;
-        })
+        .filter(user => user._id.toString() !== sender) // Only filter out the sender
         .map(user => ({
           recipient: user._id,
           type: "mention",
@@ -419,18 +414,20 @@ io.on("connection", async (socket) => {
           sender,
         }));
 
-      // Get all users who should receive channel notifications
+      // Get all users who should receive channel notifications (only offline users)
       const channelUserIds = channel.users.map(id => id.toString());
       const offlineUsers = channelUserIds.filter(userId => {
         const isInChannel = usersInChannel.has(userId);
         const isSender = userId === sender;
-        console.log(`Checking user ${userId}: in channel? ${isInChannel}, is sender? ${isSender}`);
-        return !isInChannel && !isSender;
+        const isMentioned = mentionedUsers.some(user => user._id.toString() === userId);
+        console.log(`Checking user ${userId}: in channel? ${isInChannel}, is sender? ${isSender}, is mentioned? ${isMentioned}`);
+        // Don't send regular message notification if user is in channel, is sender, or was mentioned
+        return !isInChannel && !isSender && !isMentioned;
       });
 
-      console.log('Users to notify:', offlineUsers);
+      console.log('Users to notify for regular messages:', offlineUsers);
 
-      // Add notifications for offline users
+      // Add notifications for offline users (regular messages)
       notifications.push(
         ...offlineUsers.map(userId => ({
           recipient: userId,

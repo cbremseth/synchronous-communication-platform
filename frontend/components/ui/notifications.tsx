@@ -95,9 +95,10 @@ export default function Notifications() {
 
       // Navigate to the channel with message ID in hash
       if (notification.messageId) {
-        router.push(`/chat/${notification.channelId}#${notification.messageId}`);
+        // Use replace instead of push to ensure the URL updates properly
+        router.replace(`/chat/${notification.channelId}?highlight=${notification.messageId}`);
       } else {
-        router.push(`/chat/${notification.channelId}`);
+        router.replace(`/chat/${notification.channelId}`);
       }
     } catch (error) {
       console.error("Error marking notification as read:", error);
