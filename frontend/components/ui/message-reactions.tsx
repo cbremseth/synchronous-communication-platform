@@ -15,21 +15,23 @@ interface MessageReactionsProps {
     };
   };
   onReact: (messageId: string, emoji: string, userId: string) => void;
-  // get username for emoji reaction
-  getUsernames: (userId: string[]) => Promise<{[key:string]: string }>;
+  getReactionDetails: (messageId: string) => Promise<{
+    [emoji: string]: { count: number; users: string[] };
+  }>;
 }
 
 export default function MessageReactions({
   messageId,
   reactions,
   onReact,
-  getUsernames
+  getReactionDetails
 }: MessageReactionsProps) {
   const { user } = useAuth();
   const [localReactions, setLocalReactions] = useState(reactions);
   const [showPicker, setShowPicker] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [usernames, setUsernames] = useState<{ [key: string]: string }>({});
+  const [reactionDetails, setReactionDetails] = useState<{ [emoji: string]: { count: number; users: string[] } }>({});
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const detailsRef = useRef<HTMLDivElement>(null);
 
@@ -38,24 +40,31 @@ export default function MessageReactions({
     setLocalReactions(reactions);
   }, [reactions]);
 
-  // Fetch usernames when details are opened
+  // Fetch reaction details when details panel is opened
+  useEffect(() => {
+    if (showDetails && !loadingDetails) {
+      setLoadingDetails(true);
+      getReactionDetails(messageId)
+        .then((details) => setReactionDetails(details))
+        .catch(() => setReactionDetails({}))
+        .finally(() => setLoadingDetails(false));
+    }
+  }, [showDetails]);
+
+  // Load usernames when showing the reaction details
   useEffect(() => {
     if (showDetails) {
-      const allUserIds = Object.values(localReactions)
-        .flatMap((reaction) => reaction.users)
-        .filter((userId, index, self) => self.indexOf(userId) === index);
-
-      getUsernames(allUserIds).then(setUsernames);
+      getReactionDetails(messageId).then(setLocalReactions);
     }
-  }, [showDetails, localReactions]);
+  }, [showDetails]);
+
 
   // Toggle emoji picker
   const togglePicker = () => setShowPicker((prev) => !prev);
 
   // Toggle details
-  const toggleDetails = () => {
-    setShowDetails((prev) => !prev);
-  }
+  const toggleDetails = () => setShowDetails((prev) => !prev);
+
   // Handle emoji selection
   const handleEmojiSelect = (emoji: typeof Emoji) => {
     if (!user) return;
@@ -114,17 +123,20 @@ export default function MessageReactions({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-    // Close details popup when clicking outside
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (detailsRef.current && !detailsRef.current.contains(event.target as Node)) {
-          setShowDetails(false);
-        }
-      };
+  // Close details popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        detailsRef.current &&
+        !detailsRef.current.contains(event.target as Node)
+      ) {
+        setShowDetails(false);
+      }
+    };
 
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <div className="relative flex items-center space-x-2">
@@ -145,7 +157,11 @@ export default function MessageReactions({
       </div>
 
       {/* Reaction Details Button */}
-      <Button variant="ghost" onClick={toggleDetails} className="p-2 rounded-md">
+      <Button
+        variant="ghost"
+        onClick={toggleDetails}
+        className="p-2 rounded-md"
+      >
         <MoreHorizontal className="w-6 h-6 text-gray-600" />
       </Button>
 
@@ -179,22 +195,27 @@ export default function MessageReactions({
       {showDetails && (
         <div
           ref={detailsRef}
-          className="absolute bottom-10 right-0 bg-white p-3 rounded-md shadow-md z-10 w-48"
+          className="absolute left-0 mt-2 bg-white p-3 rounded-md shadow-lg z-[9999] w-56 max-w-xs border border-gray-300"
+          style={{ top: "100%" }} // Pushes below the message
         >
           <h3 className="text-sm font-semibold mb-2">Reactions</h3>
-          {Object.entries(localReactions).map(([emoji, data]) => (
-            <div key={emoji} className="py-1">
-              <div className="flex justify-between items-center">
-                <span>{emoji}</span>
-                <span className="text-xs text-gray-600">{data.count} reacted</span>
+          {loadingDetails ? (
+            <p className="text-xs text-gray-500">Loading...</p>
+          ) : (
+            Object.entries(reactionDetails).map(([emoji, data]) => (
+              <div key={emoji} className="py-1">
+                <div className="flex justify-between items-center">
+                  <span>{emoji}</span>
+                  <span className="text-xs text-gray-600">{data.count} reacted</span>
+                </div>
+                <ul className="text-xs text-gray-500">
+                  {data.users.map((username, index) => (
+                    <li key={index}>{username}</li>
+                  ))}
+                </ul>
               </div>
-              <ul className="text-xs text-gray-500">
-                {data.users.map((userId) => (
-                  <li key={userId}>{usernames[userId] || "Loading..."}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       )}
     </div>

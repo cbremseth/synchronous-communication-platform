@@ -462,6 +462,8 @@ io.on("connection", async (socket) => {
       }
 
       await message.save();
+      console.log("Updated Reactions:", Object.fromEntries(message.reactions));
+
 
       // Emit only to users in the same channel
       io.to(message.channelId.toString()).emit("reaction_updated", {
@@ -526,5 +528,43 @@ app.delete("/api/users/:id", async (req, res) => {
     res.status(200).json({ message: "User deleted successfully." });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Endpoint to fetch usernames and emoji from message ID
+app.post("/api/reactionDetails/:messageId", async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ error: "Invalid message ID" });
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      message.reactions = {};
+    }
+
+    /// Convert Map to Object and extract user details
+    const reactionDetails = {};
+
+    // Fetch user details for all reactions
+    for (const [emoji, { count, users }] of message.reactions.entries()) {
+      const userObjects = await User.find(
+        { _id: { $in: users } },
+        { username: 1, _id: 0 }
+      );
+
+      reactionDetails[emoji] = {
+        count,
+        users: userObjects.map((user) => user.username), // Convert user IDs to usernames
+      };
+    }
+    res.json({ reactionDetails });
+    console.log("Reaction Details:", reactionDetails);
+
+  } catch (error) {
+    console.error("Error fetching reaction details:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
