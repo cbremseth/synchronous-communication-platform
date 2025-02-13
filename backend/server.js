@@ -343,8 +343,37 @@ io.on("connection", async (socket) => {
       }));
 
       socket.emit("message_history", formattedMessages);
+
+      // Send channel participants
+      const channel = await Channel.findById(channelId).populate(
+        "users",
+        "username status",
+      );
+      const participants = channel.users.map((user) => ({
+        id: user._id.toString(),
+        username: user.username,
+        status: user.status,
+      }));
+      io.to(channelId).emit("channel_participants", participants);
     } catch (error) {
       console.error("Error in join_channel:", error);
+    }
+  });
+
+  socket.on("update_status", async ({ userId, status }) => {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        console.error("User not found:", userId);
+        return;
+      }
+
+      user.status = status;
+      await user.save();
+
+      io.emit("statusUpdated", { userId, status });
+    } catch (error) {
+      console.error("Error updating status:", error);
     }
   });
 
@@ -478,40 +507,13 @@ app.delete("/api/users/:id", async (req, res) => {
   }
 });
 
-// io.on("connection", (socket) => {
-//   socket.on("join_channel", async (channelId) => {
-//     try {
-//       const channel = await Channel.findById(channelId).populate({
-//         path: "users",
-//         select: "_id username status",
-//       });
-
-//       if (!channel) return;
-
-//       const participants = channel.users.map((user) => ({
-//         id: user._id,
-//         username: user.username,
-//         status: user.status,
-//       }));
-
-//       socket.join(channelId);
-//       socket.emit("channel_participants", participants);
-//     } catch (error) {
-//       socket.emit("error", {
-//         message: "Error joining channel",
-//         error: error.message,
-//       });
-//     }
-//   });
-// });
-
-app.put("/api/users/:id/status", async (req, res) => {
-  const userId = req.params.id;
+// Update user status endpoint
+app.put("/api/users/:userId/status", async (req, res) => {
+  const userId = req.params.userId;
   const { status } = req.body;
-  if (!userId || !status) {
-    return res
-      .status(400)
-      .json({ message: "User id and status are required." });
+
+  if (!status) {
+    return res.status(400).json({ message: "Status is required" });
   }
 
   try {
@@ -522,12 +524,7 @@ app.put("/api/users/:id/status", async (req, res) => {
 
     user.status = status;
     await user.save();
-
-    // Emit the updated status to all connected sockets
-    io.emit("statusUpdated", { userId: user._id, status: user.status });
-    res
-      .status(200)
-      .json({ success: true, message: "Status updated successfully." });
+    res.status(200).json({ message: "Status updated successfully", user });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }

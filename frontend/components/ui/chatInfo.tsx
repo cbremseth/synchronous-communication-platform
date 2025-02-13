@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
 import { useSocketContext } from "@/context/SocketContext";
-import { useAuth } from "@/hooks/useAuth";
-import { updateUserStatusAction } from "@/app/actions/auth";
 
 interface Participant {
   id: string;
@@ -18,30 +10,7 @@ interface Participant {
 
 export default function ChatInfo({ channelId }: { channelId: string }) {
   const [participants, setParticipants] = useState<Participant[]>([]);
-  const [updating, setUpdating] = useState(false);
   const socket = useSocketContext();
-  const { user: currentUser } = useAuth();
-
-  const handleStatusChange = async (
-    userId: string,
-    newStatus: "online" | "busy" | "offline",
-  ) => {
-    if (currentUser?.id !== userId || updating) return;
-    setUpdating(true);
-    try {
-      const result = await updateUserStatusAction({
-        session: { user: { id: currentUser.id } },
-        newStatus,
-      });
-      if (result.success) {
-        socket?.emit("update_status", { userId, status: newStatus });
-      }
-    } catch (error) {
-      console.error("Status update failed:", error);
-    } finally {
-      setUpdating(false);
-    }
-  };
 
   useEffect(() => {
     if (!socket) return;
@@ -80,55 +49,15 @@ export default function ChatInfo({ channelId }: { channelId: string }) {
         <ul className="space-y-2">
           {participants.map((participant) => (
             <li key={participant.id} className="flex items-center gap-2">
-              {currentUser?.id === participant.id ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        participant.status === "online"
-                          ? "bg-green-500"
-                          : participant.status === "busy"
-                            ? "bg-red-500"
-                            : "bg-gray-500"
-                      }`}
-                    />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem
-                      disabled={updating}
-                      onClick={() =>
-                        handleStatusChange(participant.id, "online")
-                      }
-                    >
-                      Online
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={updating}
-                      onClick={() => handleStatusChange(participant.id, "busy")}
-                    >
-                      Busy
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={updating}
-                      onClick={() =>
-                        handleStatusChange(participant.id, "offline")
-                      }
-                    >
-                      Offline
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    participant.status === "online"
-                      ? "bg-green-500"
-                      : participant.status === "busy"
-                        ? "bg-red-500"
-                        : "bg-gray-500"
-                  }`}
-                />
-              )}
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  participant.status === "online"
+                    ? "bg-green-500"
+                    : participant.status === "busy"
+                      ? "bg-red-500"
+                      : "bg-gray-500"
+                }`}
+              />
               <span>{participant.username}</span>
             </li>
           ))}

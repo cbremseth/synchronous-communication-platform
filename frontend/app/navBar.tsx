@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
-import { updateUserStatusAction } from "@/app/actions/auth";
-import { Settings } from "lucide-react"; // Import gear icon
+import { Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,58 +11,51 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/hooks/useAuth";
+import { updateUserStatusAction } from "./actions/auth";
 import { useSocketContext } from "@/context/SocketContext";
 
-const StatusIndicator = ({ status }: { status: string }) => {
-  const colors = {
-    online: "bg-green-500",
-    offline: "bg-gray-500",
-    busy: "bg-red-500",
-  };
-  return (
-    <span
-      className={`w-2 h-2 rounded-full mr-2 ${
-        colors[status as keyof typeof colors]
-      }`}
-    />
-  );
-};
-
 const NavBar = () => {
-  const { data: session, status: sessionStatus } = useSession();
-  const [currentStatus, setCurrentStatus] = useState("online");
-  const [updating, setUpdating] = useState(false);
+  const { user, isAuthenticated } = useAuth();
+  const { data: session } = useSession();
   const socket = useSocketContext();
+  const [userStatus, setUserStatus] = useState("online");
 
   useEffect(() => {
-    console.log("Session Data:", session);
-    console.log("User ID:", session?.user?.id);
-    console.log("Session Status:", sessionStatus);
-  }, [session, sessionStatus]);
+    // Log user data from useAuth
+    // console.log("User Data:", user);
+    // console.log("User ID:", user?.id);
+    // console.log("Is Authenticated:", isAuthenticated);
+  }, [user, isAuthenticated]);
 
-  const handleStatusChange = async (
-    newStatus: "online" | "offline" | "busy",
-  ) => {
-    if (!session?.user?.id || updating) return;
-
-    setUpdating(true);
+  const handleStatusChange = async (status: string) => {
     try {
+      // Prioritize userID from session because your session log shows user.userID
+      const userId =
+        session?.user?.userID || session?.user?._id || session?.user?.id;
+      console.log("User id used for status update:", userId);
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      setUserStatus(status);
+
       const result = await updateUserStatusAction({
-        session: { user: { id: session.user.id } },
-        newStatus,
+        session: { user: { id: userId } },
+        newStatus: status,
       });
 
-      if (result.success) {
-        setCurrentStatus(newStatus);
-        socket?.emit("update_status", {
-          userId: session.user.id,
-          status: newStatus,
-        });
+      if (!result.success) {
+        throw new Error(result.error || "Failed to update status");
       }
+
+      // Emit status update to the server
+      socket?.emit("update_status", { userId, status });
+
+      console.log("Status updated successfully");
     } catch (error) {
-      console.error("Failed to update status:", error);
-    } finally {
-      setUpdating(false);
+      console.error("Error updating status:", error);
+      setUserStatus((prevStatus) => prevStatus);
     }
   };
 
@@ -77,41 +69,44 @@ const NavBar = () => {
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className="flex items-center">
-              <StatusIndicator status={currentStatus} />
               Set Status
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuItem
-                disabled={updating}
+                className="flex items-center justify-between"
                 onClick={() => handleStatusChange("online")}
-                className="flex items-center"
               >
-                <StatusIndicator status="online" />
-                Online
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span>Online</span>
+                </div>
+                {userStatus === "online" && <span>✓</span>}
               </DropdownMenuItem>
               <DropdownMenuItem
-                disabled={updating}
+                className="flex items-center justify-between"
                 onClick={() => handleStatusChange("busy")}
-                className="flex items-center"
               >
-                <StatusIndicator status="busy" />
-                Busy
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <span>Busy</span>
+                </div>
+                {userStatus === "busy" && <span>✓</span>}
               </DropdownMenuItem>
               <DropdownMenuItem
-                disabled={updating}
+                className="flex items-center justify-between"
                 onClick={() => handleStatusChange("offline")}
-                className="flex items-center"
               >
-                <StatusIndicator status="offline" />
-                Offline
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-gray-400" />
+                  <span>Offline</span>
+                </div>
+                {userStatus === "offline" && <span>✓</span>}
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
 
           <Link href="/profileSettings" legacyBehavior passHref>
-            <DropdownMenuItem className="cursor-pointer">
-              Account Settings
-            </DropdownMenuItem>
+            <DropdownMenuItem>Account Settings</DropdownMenuItem>
           </Link>
           <DropdownMenuItem
             className="text-red-500 hover:text-red-700 cursor-pointer"
