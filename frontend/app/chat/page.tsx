@@ -23,6 +23,7 @@ interface Message {
   timestamp?: string;
   isEditing?: boolean;
   channelId: string;
+  mentions?: string[];
 }
 
 interface MessageProps {
@@ -62,6 +63,8 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
 
   // Add function to fetch general channel
   const fetchGeneralChannel = async () => {
@@ -114,14 +117,39 @@ export default function Chat({
     }
   };
 
+  // Add function to scroll to message
+  const scrollToMessage = (messageId: string) => {
+    const messageElement = messageRefs.current[messageId];
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedMessageId(messageId);
+      // Remove highlight after 2 seconds
+      setTimeout(() => setHighlightedMessageId(null), 2000);
+    }
+  };
+
+  // Add effect to handle message highlighting from URL
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash) {
+      const messageId = hash.slice(1); // Remove the # from the hash
+      scrollToMessage(messageId);
+    }
+  }, [messages]); // Depend on messages to ensure they're loaded
+
   function onClick(message: string) {
     if (!user || !currentChannelId || message.trim() === "") return;
+
+    // Extract mentions from message
+    const mentionRegex = /@(\w+)/g;
+    const mentions = message.match(mentionRegex)?.map(m => m.substring(1)) || [];
 
     socket.emit("message", {
       content: message,
       sender: user.userID,
       senderName: user.username,
       channelId: currentChannelId,
+      mentions,
     });
     setMessage("");
   }
@@ -146,7 +174,7 @@ export default function Chat({
     setMessages([]);
 
     // Join the channel
-    socket.emit("join_channel", currentChannelId);
+    socket.emit("join_channel", currentChannelId, user.userID);
 
     // Add message history listener
     socket.on("message_history", (history: Message[]) => {
@@ -259,37 +287,44 @@ export default function Chat({
           <h1 className="text-lg font-semibold">{roomName}</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">
-              Welcome, {user.username}!
+              Welcome, {user?.username || "Guest"}!
             </span>
             <NavBar />
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) =>
-            msg.sender === user.userID ? (
-              <SentMessage
+          {messages.map((msg) => {
+            const isSentByUser = msg.sender === user?.userID;
+            const MessageComponent = isSentByUser ? SentMessage : ReceivedMessage;
+
+            return (
+              <div
                 key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-              />
-            ) : (
-              <ReceivedMessage
-                key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-              />
-            ),
-          )}
+                ref={el => {
+                  if (el) messageRefs.current[msg._id] = el;
+                }}
+                className={`${
+                  highlightedMessageId === msg._id
+                    ? "bg-yellow-100 dark:bg-yellow-900 rounded-lg transition-colors duration-500"
+                    : ""
+                }`}
+              >
+                <MessageComponent
+                  message={msg.content}
+                  sender={msg.sender}
+                  senderName={msg.senderName}
+                />
+              </div>
+            );
+          })}
           <div ref={messagesEndRef} />
         </main>
 
         <footer className="flex-none flex items-center space-x-2 border-t p-4 bg-white">
           <Input
             className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-4 border-cyan-950"
-            placeholder="Type a message"
+            placeholder="Type a message (@username to mention)"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onClick(message)}

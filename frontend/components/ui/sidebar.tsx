@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Plus, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { CreateChannelModal } from "@/components/ui/create-channel-modal";
 import { EditChannelModal } from "@/components/ui/edit-channel-modal";
+import Notifications from "@/components/ui/notifications";
 
 interface Channel {
   _id: string;
@@ -163,7 +163,7 @@ export default function Sidebar() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={createNewChannel}
-        currentUser={user}
+        currentUser={user ? { userID: user.userID, username: user.username } : null}
       />
 
       {/* Show loading state */}
@@ -215,17 +215,12 @@ export default function Sidebar() {
           onSave={handleUpdateChannel}
           onArchive={handleArchiveChannel}
           channel={editingChannel}
-          currentUser={user}
+          currentUser={user ? { userID: user.userID, username: user.username } : null}
         />
       )}
 
       <h2 className="text-lg font-bold mt-6">Notifications</h2>
-      <ScrollArea className="h-1/2 opacity-50 bg-gray-700 px-2 py-4 hover:bg-violet-900 rounded-md flex-1 overflow-y-auto mt-2 h-32 overflow-auto">
-        <p className="text-sm">
-          User456 reacted to your message in Project Alpha
-        </p>
-        <p className="text-sm">User123 sent a message in Project Alpha</p>
-      </ScrollArea>
+      <Notifications />
     </div>
   );
 }
