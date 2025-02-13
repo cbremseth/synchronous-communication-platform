@@ -193,8 +193,8 @@ export default function Chat({
     socket.on("reaction_updated", ({ messageId, reactions }) => {
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
-          msg._id === messageId ? { ...msg, reactions } : msg
-        )
+          msg._id === messageId ? { ...msg, reactions } : msg,
+        ),
       );
     });
     return () => {
@@ -224,7 +224,13 @@ export default function Chat({
     return null;
   }
 
-  const ReceivedMessage = ({ message, senderName, messageId, reactions, sender }: MessageProps) => (
+  const ReceivedMessage = ({
+    message,
+    senderName,
+    messageId,
+    reactions,
+    sender,
+  }: MessageProps) => (
     <div className="flex items-end space-x-2">
       <Avatar className="bg-gray-100 dark:bg-gray-800">
         <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
@@ -233,21 +239,33 @@ export default function Chat({
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
           <p className="text-sm">{message}</p>
-          <MessageReactions messageId={messageId} reactions={reactions || {}}
-          emojiSetter={sender} />
+          <MessageReactions
+            messageId={messageId}
+            reactions={reactions || {}}
+            emojiSetter={sender}
+          />
         </div>
       </div>
     </div>
   );
 
-  const SentMessage = ({ message, senderName, messageId, reactions, sender }: MessageProps) => (
+  const SentMessage = ({
+    message,
+    senderName,
+    messageId,
+    reactions,
+    sender,
+  }: MessageProps) => (
     <div className="flex items-end justify-end space-x-2">
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-blue-500 text-white">
           <p className="text-sm">{message}</p>
-          <MessageReactions messageId={messageId} reactions={reactions || {}}
-          emojiSetter={sender} />
+          <MessageReactions
+            messageId={messageId}
+            reactions={reactions || {}}
+            emojiSetter={sender}
+          />
         </div>
       </div>
       <Avatar className="bg-gray-100 dark:bg-gray-800">
