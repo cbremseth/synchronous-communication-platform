@@ -2,126 +2,139 @@ import { useState, useRef, useEffect } from "react";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
 import { Button } from "@/components/ui/button";
-import { Smile } from "lucide-react"; // Import Smile icon from lucide-react
+import { Smile } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import Emoji from "@emoji-mart/react";
 
-export default function EmojiPicker({ messageId, reactions, emojiSetter }) {
+interface MessageReactionsProps {
+  messageId: string;
+  reactions: {
+    [emoji: string]: {
+      count: number;
+      users: string[];
+    };
+  };
+  onReact: (messageId: string, emoji: string, userId: string) => void;
+}
+
+export default function MessageReactions({
+  messageId,
+  reactions,
+  onReact,
+}: MessageReactionsProps) {
+  const { user } = useAuth();
+  const [localReactions, setLocalReactions] = useState(reactions);
   const [showPicker, setShowPicker] = useState(false);
-  const [selectedEmoji, setSelectedEmoji] = useState("");
-  const pickerRef = useRef(null); // Reference to the emoji picker div
-  const pickerWrapperRef = useRef(null); // Wrapper to apply position adjustments
+  const pickerRef = useRef<HTMLDivElement>(null);
 
-  // Toggle the emoji picker visibility
-  const togglePicker = () => setShowPicker(!showPicker);
+  // Sync reactions with props
+  useEffect(() => {
+    setLocalReactions(reactions);
+  }, [reactions]);
+
+  // Toggle emoji picker
+  const togglePicker = () => setShowPicker((prev) => !prev);
 
   // Handle emoji selection
-  const handleEmojiSelect = (emoji) => {
-    setSelectedEmoji(emoji.native); // Store selected emoji
-    setShowPicker(false); // Close the picker when an emoji is selected
+  const handleEmojiSelect = (emoji: typeof Emoji) => {
+    if (!user) return;
+    const selectedEmoji = emoji.native;
 
-    // Send the selected emoji to the backend using PATCH request
-    sendEmojiToBackend(emoji.native);
-  };
+    // Update reactions optimistically
+    setLocalReactions((prevReactions) => {
+      const existingReaction = prevReactions[selectedEmoji] || {
+        count: 0,
+        users: [],
+      };
+      const hasReacted = existingReaction.users.includes(user.userID);
 
-  // Send emoji to the backend
-  const sendEmojiToBackend = async (emoji) => {
-    try {
-      const response = await fetch(`/api/messages/${messageId}/reactions`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
+      return {
+        ...prevReactions,
+        [selectedEmoji]: {
+          count: hasReacted
+            ? existingReaction.count - 1
+            : existingReaction.count + 1,
+          users: hasReacted
+            ? existingReaction.users.filter((id) => id !== user.userID)
+            : [...existingReaction.users, user.userID],
         },
-        body: JSON.stringify({
-          emoji: emoji,
-          userId: emojiSetter,
-        }),
-      });
+      };
+    });
 
-      if (!response.ok) {
-        throw new Error("Failed to send emoji reaction to the backend");
-      }
-
-      const data = await response.json();
-      console.log("Emoji successfully sent:", data);
-    } catch (error) {
-      console.error("Error sending emoji to backend:", error);
-    }
+    // Send reaction to backend
+    onReact(messageId, selectedEmoji, user.userID);
+    setShowPicker(false);
   };
 
-  // Function to adjust the position of the emoji picker
-  const adjustPickerPosition = () => {
-    if (pickerRef.current) {
-      const pickerRect = pickerRef.current.getBoundingClientRect();
-      const pickerBottom = pickerRect.bottom;
-      const windowHeight = window.innerHeight;
-
-      // If the emoji picker is too close to the bottom of the page, move it up
-      if (pickerBottom > windowHeight - 10) {
-        pickerWrapperRef.current.style.bottom = `${pickerRect.height}px`;
-      } else {
-        pickerWrapperRef.current.style.bottom = "0";
-      }
-    }
-  };
-
-  // Close the emoji picker when clicking outside the picker
-  const handleClickOutside = (event) => {
-    if (pickerWrapperRef.current && !pickerWrapperRef.current.contains(event.target)) {
-      setShowPicker(false); // Close picker if clicked outside
-    }
-  };
-
-  // Close the emoji picker when pressing the Escape key
-  const handleEscapeKey = (event) => {
-    if (event.key === "Escape") {
-      setShowPicker(false); // Close picker if Escape key is pressed
-    }
-  };
-
-  // Add the event listener for clicks outside the picker and Escape key
+  // Close picker when pressing Escape key
   useEffect(() => {
-    // Listen for click events on the document
-    document.addEventListener("mousedown", handleClickOutside);
-
-    // Listen for the Escape key to close the picker
-    document.addEventListener("keydown", handleEscapeKey);
-
-    // Cleanup the event listeners
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscapeKey);
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowPicker(false);
+      }
     };
+
+    document.addEventListener("keydown", handleEscapeKey);
+    return () => document.removeEventListener("keydown", handleEscapeKey);
   }, []);
 
-  // Adjust picker position when it appears
+  // Close picker when clicking outside
   useEffect(() => {
-    if (showPicker) {
-      adjustPickerPosition();
-    }
-  }, [showPicker]);
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        pickerRef.current &&
+        !pickerRef.current.contains(event.target as Node)
+      ) {
+        setShowPicker(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
-    <div>
-      {/* Button to trigger the emoji picker */}
-      <Button
-        variant="ghost"
-        onClick={togglePicker}
-        className="p-2 rounded-md flex items-center justify-center"
-      >
-        {selectedEmoji ? (
-          selectedEmoji
-        ) : (
-          <Smile className="w-6 h-6 text-gray-600" />
-        )}
+    <div className="relative flex items-center space-x-2">
+      {/* Display selected emojis with counts */}
+      <div className="flex space-x-1">
+        {Object.entries(localReactions).map(([emoji, data]) => (
+          <button
+            key={emoji}
+            className={`flex items-center space-x-1 p-1 rounded-md hover:bg-gray-300 ${
+              data.users.includes(user?.userID) ? "bg-blue-200" : "bg-gray-200"
+            }`}
+            onClick={() => handleEmojiSelect({ native: emoji })}
+          >
+            <span>{emoji}</span>
+            <span className="text-sm">{data.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Emoji Picker Button */}
+      <Button variant="ghost" onClick={togglePicker} className="p-2 rounded-md">
+        <Smile className="w-6 h-6 text-gray-600" />
       </Button>
 
-      {/* Emoji picker when showPicker is true */}
+      {/* Centered Picker with Reduced Size */}
       {showPicker && (
         <div
-          ref={pickerWrapperRef}
-          className="absolute z-10"
-          style={{ bottom: 0 }}
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+          onClick={() => setShowPicker(false)} // Close picker when clicking outside
         >
-          <Picker data={data} onEmojiSelect={handleEmojiSelect} theme="dark" ref={pickerRef} />
+          <div
+            ref={pickerRef}
+            className="bg-gray-900 p-4 rounded-lg shadow-lg"
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+          >
+            <Picker
+              data={data}
+              onEmojiSelect={handleEmojiSelect}
+              theme="dark"
+              perLine={6} // Reduce width
+              emojiSize={22} // Smaller emoji size
+            />
+          </div>
         </div>
       )}
     </div>

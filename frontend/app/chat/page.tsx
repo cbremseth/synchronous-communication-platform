@@ -24,7 +24,12 @@ interface Message {
   timestamp?: string;
   isEditing?: boolean;
   channelId: string;
-  reactions: { [emoji: string]: string[] };
+  reactions: {
+    [emoji: string]: {
+      count: number; // Number of times this emoji has been reacted to
+      users: string[]; // List of user IDs who reacted with this emoji
+    };
+  };
 }
 
 interface MessageProps {
@@ -32,7 +37,12 @@ interface MessageProps {
   sender: string;
   senderName: string;
   messageId: string;
-  reactions: { [emoji: string]: string[] };
+  reactions: {
+    [emoji: string]: {
+      count: number;
+      users: string[];
+    };
+  };
 }
 
 // Interfaces for search results: Users
@@ -197,10 +207,42 @@ export default function Chat({
         ),
       );
     });
+
     return () => {
       socket.off("reaction_updated");
     };
   }, []);
+
+  // Function to handle emoji reactions
+  const handleReaction = (messageId: string, emoji: string) => {
+    if (!user) return;
+
+    socket.emit("add_reaction", {
+      messageId,
+      emoji,
+      userId: user.userID, // Send user ID
+    });
+
+    setMessages((prevMessages) =>
+      prevMessages.map((msg) =>
+        msg._id === messageId
+          ? {
+              ...msg,
+              reactions: {
+                ...msg.reactions,
+                [emoji]: {
+                  count: (msg.reactions?.[emoji]?.count || 0) + 1,
+                  users: [
+                    ...(msg.reactions?.[emoji]?.users || []),
+                    user.userID,
+                  ],
+                },
+              },
+            }
+          : msg,
+      ),
+    );
+  };
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -229,7 +271,6 @@ export default function Chat({
     senderName,
     messageId,
     reactions,
-    sender,
   }: MessageProps) => (
     <div className="flex items-end space-x-2">
       <Avatar className="bg-gray-100 dark:bg-gray-800">
@@ -242,7 +283,7 @@ export default function Chat({
           <MessageReactions
             messageId={messageId}
             reactions={reactions || {}}
-            emojiSetter={sender}
+            onReact={handleReaction}
           />
         </div>
       </div>
@@ -254,7 +295,6 @@ export default function Chat({
     senderName,
     messageId,
     reactions,
-    sender,
   }: MessageProps) => (
     <div className="flex items-end justify-end space-x-2">
       <div className="flex flex-col items-end gap-1">
@@ -264,7 +304,7 @@ export default function Chat({
           <MessageReactions
             messageId={messageId}
             reactions={reactions || {}}
-            emojiSetter={sender}
+            onReact={handleReaction}
           />
         </div>
       </div>

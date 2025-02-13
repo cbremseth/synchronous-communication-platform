@@ -29,9 +29,11 @@ const messageSchema = new mongoose.Schema({
   // Reactions - Map of emoji -> array of user IDs
   reactions: {
     type: Map,
-    of: [mongoose.Schema.Types.ObjectId],
-    default: {}
-  }
+    of: {
+      count: { type: Number, default: 0 },
+      users: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    },
+  },
 });
 
 // Compound index for efficient message retrieval in a channel
