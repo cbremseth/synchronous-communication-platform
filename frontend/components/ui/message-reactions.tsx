@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
 import { Button } from "@/components/ui/button";
-import { Smile } from "lucide-react";
+import { Smile, MoreHorizontal } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Emoji from "@emoji-mart/react";
 
@@ -15,26 +15,47 @@ interface MessageReactionsProps {
     };
   };
   onReact: (messageId: string, emoji: string, userId: string) => void;
+  // get username for emoji reaction
+  getUsernames: (userId: string[]) => Promise<{[key:string]: string }>;
 }
 
 export default function MessageReactions({
   messageId,
   reactions,
   onReact,
+  getUsernames
 }: MessageReactionsProps) {
   const { user } = useAuth();
   const [localReactions, setLocalReactions] = useState(reactions);
   const [showPicker, setShowPicker] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const [usernames, setUsernames] = useState<{ [key: string]: string }>({});
   const pickerRef = useRef<HTMLDivElement>(null);
+  const detailsRef = useRef<HTMLDivElement>(null);
 
   // Sync reactions with props
   useEffect(() => {
     setLocalReactions(reactions);
   }, [reactions]);
 
+  // Fetch usernames when details are opened
+  useEffect(() => {
+    if (showDetails) {
+      const allUserIds = Object.values(localReactions)
+        .flatMap((reaction) => reaction.users)
+        .filter((userId, index, self) => self.indexOf(userId) === index);
+
+      getUsernames(allUserIds).then(setUsernames);
+    }
+  }, [showDetails, localReactions]);
+
   // Toggle emoji picker
   const togglePicker = () => setShowPicker((prev) => !prev);
 
+  // Toggle details
+  const toggleDetails = () => {
+    setShowDetails((prev) => !prev);
+  }
   // Handle emoji selection
   const handleEmojiSelect = (emoji: typeof Emoji) => {
     if (!user) return;
@@ -93,6 +114,18 @@ export default function MessageReactions({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+    // Close details popup when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (detailsRef.current && !detailsRef.current.contains(event.target as Node)) {
+          setShowDetails(false);
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
   return (
     <div className="relative flex items-center space-x-2">
       {/* Display selected emojis with counts */}
@@ -110,6 +143,11 @@ export default function MessageReactions({
           </button>
         ))}
       </div>
+
+      {/* Reaction Details Button */}
+      <Button variant="ghost" onClick={toggleDetails} className="p-2 rounded-md">
+        <MoreHorizontal className="w-6 h-6 text-gray-600" />
+      </Button>
 
       {/* Emoji Picker Button */}
       <Button variant="ghost" onClick={togglePicker} className="p-2 rounded-md">
@@ -135,6 +173,28 @@ export default function MessageReactions({
               emojiSize={22} // Smaller emoji size
             />
           </div>
+        </div>
+      )}
+      {/* Reaction Details Popup */}
+      {showDetails && (
+        <div
+          ref={detailsRef}
+          className="absolute bottom-10 right-0 bg-white p-3 rounded-md shadow-md z-10 w-48"
+        >
+          <h3 className="text-sm font-semibold mb-2">Reactions</h3>
+          {Object.entries(localReactions).map(([emoji, data]) => (
+            <div key={emoji} className="py-1">
+              <div className="flex justify-between items-center">
+                <span>{emoji}</span>
+                <span className="text-xs text-gray-600">{data.count} reacted</span>
+              </div>
+              <ul className="text-xs text-gray-500">
+                {data.users.map((userId) => (
+                  <li key={userId}>{usernames[userId] || "Loading..."}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       )}
     </div>

@@ -140,6 +140,23 @@ export default function Chat({
     setMessage("");
   }
 
+  // Function to fetch usernames from backend
+  const getUsernames = async (userIds: string[]): Promise<{ [key: string]: string }> => {
+    try {
+      const response = await fetch(`/api/users/getUsernames`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userIds }),
+      });
+
+      const data = await response.json();
+      return data.usernames;
+    } catch (error) {
+      console.error("Error fetching usernames:", error);
+      return {};
+    }
+  };
+
   useEffect(() => {
     console.log("Auth state:", { user, isLoading, isAuthenticated });
     if (!isLoading && !isAuthenticated) {
@@ -220,7 +237,7 @@ export default function Chat({
     socket.emit("add_reaction", {
       messageId,
       emoji,
-      userId: user.userID, // Send user ID
+      userId: user.userID,
     });
 
     setMessages((prevMessages) =>
@@ -284,6 +301,7 @@ export default function Chat({
             messageId={messageId}
             reactions={reactions || {}}
             onReact={handleReaction}
+            getUsernames={getUsernames}
           />
         </div>
       </div>
@@ -305,6 +323,7 @@ export default function Chat({
             messageId={messageId}
             reactions={reactions || {}}
             onReact={handleReaction}
+            getUsernames={getUsernames}
           />
         </div>
       </div>
