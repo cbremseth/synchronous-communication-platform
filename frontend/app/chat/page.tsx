@@ -11,9 +11,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
+import { Upload } from "lucide-react";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
+// Use API URL dynamically based on whether the app is running inside Docker or locally
+const API_BASE_URL =
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:5001"
+    : process.env.NEXT_PUBLIC_API_URL;
 
 interface Message {
   _id: string;
@@ -92,15 +98,10 @@ export default function Chat({
       setMessageResults([]);
       return;
     }
-    // Use API URL dynamically based on whether the app is running inside Docker or locally
-    const apiBaseUrl =
-      typeof window !== "undefined" && window.location.hostname === "localhost"
-        ? "http://localhost:5001"
-        : process.env.NEXT_PUBLIC_API_URL;
 
     try {
       const response = await fetch(
-        `${apiBaseUrl}/api/searchbar?query=${query}`,
+        `${API_BASE_URL}/api/searchbar?query=${query}`,
       );
       if (!response.ok) throw new Error("Failed to fetch search results");
 
@@ -111,6 +112,35 @@ export default function Chat({
       console.error("Error searching:", error);
       setUserResults([]);
       setMessageResults([]);
+    }
+  };
+
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file || !user || !currentChannelId) {
+      console.error("Upload failed: Missing user or channel ID");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("sender", user.userID);
+    formData.append("senderName", user.username);
+    formData.append("channelId", currentChannelId);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("File upload failed");
+
+      console.log("File uploaded successfully");
+    } catch (error) {
+      console.error("Error uploading file:", error);
     }
   };
 
@@ -294,6 +324,10 @@ export default function Chat({
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onClick(message)}
           />
+          <label className="cursor-pointer">
+            <Upload className="w-6 h-6 text-gray-600" />
+            <input type="file" className="hidden" onChange={handleFileUpload} />
+          </label>
           <Button
             className="w-20"
             variant="default"

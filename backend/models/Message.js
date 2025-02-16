@@ -25,6 +25,23 @@ const messageSchema = new mongoose.Schema({
     default: Date.now,
     index: true,
   },
+  fileId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "fs.files",
+    default: null,
+  },
+  fileName: {
+    type: String,
+    default: null,
+  },
+  fileType: {
+    type: String,
+    default: null,
+  },
+  fileSize: {
+    type: Number,
+    default: null,
+  },
 });
 
 // Compound index for efficient message retrieval in a channel
