@@ -11,7 +11,6 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import seedUsers from "./seed.js"; // Import the seed function
 import multer from "multer";
-import Grid from "gridfs-stream";
 import { GridFsStorage } from "multer-gridfs-storage";
 
 const app = express();
@@ -485,51 +484,65 @@ app.delete("/api/users/:id", async (req, res) => {
 
 // Initialize GridFS
 let gfs;
-const conn = mongoose.connection; // Get default Mongoose connection
+const conn = mongoose.connection;
 conn.once("open", () => {
-  gfs = Grid(conn.db, mongoose.mongo);
-  gfs.collection("uploads");
+  gfs = new mongoose.mongo.GridFSBucket(conn.db, {
+    bucketName: "uploads",
+  });
   console.log("GridFS initialized");
 });
 
 // Set up GridFS Storage Engine for File Uploads**
 const storage = new GridFsStorage({
   url: process.env.MONGODB_URI,
+  options: { useNewUrlParser: true, useUnifiedTopology: true },
   file: (req, file) => {
-    return {
-      filename: `${Date.now()}-${file.originalname}`,
-      bucketName: "uploads",
-    };
+    return new Promise((resolve, reject) => {
+      if (!file) {
+        reject(new Error("File is missing"));
+      }
+
+      const fileInfo = {
+        filename: `${Date.now()}-${file.originalname}`,
+        bucketName: "uploads",
+      };
+
+      resolve(fileInfo);
+    });
   },
 });
 
 const upload = multer({ storage });
 
-/*
-Frontend sends a POST request to this endpoint to upload a file with:
-the file, the channel ID, the sender ID
-The request is processed: stores the file in MongoDB GridFS, saves a message entry
-in the messages collection, and broadcasts the new file message to all users in the channel
-
-*/
+// Upload File API
 app.post("/api/upload", upload.single("file"), async (req, res) => {
-  if (!req.file || !req.body.channelId || !req.body.senderId) {
+  if (!req.file) {
+    return res
+      .status(400)
+      .json({ error: "File upload failed. No file received." });
+  }
+
+  if (!req.body.channelId || !req.body.senderId) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
-    // Extract data
     const { channelId, senderId } = req.body;
     const fileId = req.file.id;
     const fileName = req.file.filename;
     const fileType = req.file.contentType;
     const fileSize = req.file.size;
 
+    if (!fileId) {
+      throw new Error("File upload failed: No file ID returned from GridFS.");
+    }
+
     // Save message with file reference
     const newMessage = new Message({
       sender: senderId,
+      senderName: req.body.senderName || "Unknown",
       channelId,
-      content: "",
+      content: "Uploaded a file",
       fileId,
       fileName,
       fileType,
@@ -539,19 +552,13 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
 
     await newMessage.save();
 
-    // Emit "file_upload" event to all users in the same channel
-    io.to(channelId).emit("file_upload", {
-      _id: newMessage._id.toString(),
-      fileId: fileId.toString(),
+    res.status(200).json({
+      message: "File uploaded successfully",
+      fileId,
       fileName,
       fileType,
       fileSize,
-      channelId,
-      sender: senderId,
-      timestamp: newMessage.timestamp,
     });
-
-    res.status(200).json({ message: "File uploaded successfully", fileId });
   } catch (error) {
     console.error("File upload error:", error);
     res.status(500).json({ error: error.message });

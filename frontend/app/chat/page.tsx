@@ -118,17 +118,20 @@ export default function Chat({
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
+    console.log("Preparing to upload file");
+    console.log("currentChannelId:", currentChannelId);
     const file = event.target.files?.[0];
     if (!file || !user || !currentChannelId) {
       console.error("Upload failed: Missing user or channel ID");
       return;
     }
+    console.log("Information about file:", file);
 
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("sender", user.userID);
-    formData.append("senderName", user.username);
+    formData.append("senderId", user.userID);
     formData.append("channelId", currentChannelId);
+    formData.append("senderName", user.username);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/upload`, {
@@ -138,7 +141,21 @@ export default function Chat({
 
       if (!response.ok) throw new Error("File upload failed");
 
+      // const data = await response.json();
       console.log("File uploaded successfully");
+
+      // const data = await response.json();
+
+      // socket.emit("new_file", {
+      //   fileId: data.fileId,
+      //   fileName: data.fileName,
+      //   fileType: data.fileType,
+      //   fileSize: data.fileSize,
+      //   sender: user.userID,
+      //   senderName: user.username,
+      //   channelId: currentChannelId,
+      //   timestamp: new Date(),
+      // });
     } catch (error) {
       console.error("Error uploading file:", error);
     }
