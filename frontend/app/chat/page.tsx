@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Manager } from "socket.io-client";
 import Sidebar from "@/components/ui/sidebar";
-import ChatInfo from "@/components/ui/chatInfo";
+// import ChatInfo from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -51,6 +52,14 @@ interface MessageResult {
   senderName: string;
 }
 
+// Interface for ChatInfo component - Uploaded Files
+interface FileInfo {
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  senderName: string;
+}
+
 export default function Chat({
   roomName = "General Chat",
   channelId,
@@ -68,6 +77,7 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
+  const [files, setFiles] = useState<FileInfo[]>([]);
 
   // Add function to fetch general channel
   const fetchGeneralChannel = async () => {
@@ -118,8 +128,7 @@ export default function Chat({
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    console.log("Preparing to upload file");
-    console.log("currentChannelId:", currentChannelId);
+    console.log("Preparing to upload file in channel: ", currentChannelId);
     const file = event.target.files?.[0];
     if (!file || !user || !currentChannelId) {
       console.error("Upload failed: Missing user or channel ID");
@@ -141,25 +150,36 @@ export default function Chat({
 
       if (!response.ok) throw new Error("File upload failed");
 
-      // const data = await response.json();
+      const data = await response.json();
+
+      // Emit fileUpload event to notify all users
+      socket.emit("fileUpload", {
+        fileName: data.fileName,
+        fileType: data.fileType,
+        fileSize: data.fileSize,
+        senderName: user.username,
+        channelId: currentChannelId,
+      });
+
       console.log("File uploaded successfully");
-
-      // const data = await response.json();
-
-      // socket.emit("new_file", {
-      //   fileId: data.fileId,
-      //   fileName: data.fileName,
-      //   fileType: data.fileType,
-      //   fileSize: data.fileSize,
-      //   sender: user.userID,
-      //   senderName: user.username,
-      //   channelId: currentChannelId,
-      //   timestamp: new Date(),
-      // });
     } catch (error) {
       console.error("Error uploading file:", error);
     }
   };
+
+  useEffect(() => {
+    const handleFileUpload = (file: FileInfo) => {
+      console.log("Received a file upload event:", file);
+      setFiles((prevFiles) => [...prevFiles, file]);
+    };
+
+    // Listen for the file_uploaded event
+    socket.on("file_uploaded", handleFileUpload);
+
+    return () => {
+      socket.off("file_uploaded", handleFileUpload);
+    };
+  }, [currentChannelId]);
 
   function onClick(message: string) {
     if (!user || !currentChannelId || message.trim() === "") return;
@@ -229,6 +249,7 @@ export default function Chat({
       socket.off("connect");
       socket.off("message");
       socket.off("message_history");
+      socket.off("file_uploaded");
     };
   }, [user, isAuthenticated, isLoading, currentChannelId]);
 
@@ -356,9 +377,41 @@ export default function Chat({
         </footer>
       </div>
 
-      {/* Chat Info Panel */}
       <div className="w-64">
-        <ChatInfo />
+        {/* Chat Info Panel */}
+        <div className="w-full h-full bg-gray-200 p-4 flex flex-col justify-between">
+          <h2 className="text-lg font-semibold mb-4">Room Details</h2>
+          <div className="flex flex-col flex-1 justify-between">
+            <Card className="p-3 h-1/2">
+              <h3 className="font-semibold">Participants</h3>
+              <ul className="text-sm">
+                <li>User123</li>
+                <li>User456</li>
+                <li>You</li>
+              </ul>
+            </Card>
+            <Card className="p-3 h-1/2 mt-8">
+              <h3 className="font-semibold">Files</h3>
+              {files.length > 0 ? (
+                <ul className="text-sm">
+                  {files.map((file, index) => (
+                    <li key={index} className="py-1 border-b border-gray-300">
+                      <a
+                        href={`${API_BASE_URL}/api/files/${file.fileName}`}
+                        className="text-blue-600 underline"
+                      >
+                        {file.fileName}
+                      </a>
+                      <p className="text-xs">Uploaded by {file.senderName}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm">No files shared yet</p>
+              )}
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -425,6 +425,26 @@ io.on("connection", async (socket) => {
       console.error("Error updating message:", error);
     }
   });
+
+  // Handle file uploads
+  socket.on(
+    "fileUpload",
+    async ({ fileName, fileSize, fileType, senderName, channelId }) => {
+      try {
+        console.log(`File upload: ${fileName} by ${senderName}`);
+
+        // Emit file upload to all users in channel
+        io.to(channelId.toString()).emit("file_uploaded", {
+          fileName,
+          fileType,
+          fileSize,
+          senderName,
+        });
+      } catch (error) {
+        console.log("Error handling file upload event: ", error);
+      }
+    },
+  );
 });
 
 httpServer.listen(PORT, () => {
@@ -503,7 +523,7 @@ const storage = new GridFsStorage({
       }
 
       const fileInfo = {
-        filename: `${Date.now()}-${file.originalname}`,
+        filename: `${file.originalname}`,
         bucketName: "uploads",
       };
 
@@ -523,7 +543,9 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
   }
 
   if (!req.body.channelId || !req.body.senderId) {
-    return res.status(400).json({ error: "Missing required fields" });
+    return res
+      .status(400)
+      .json({ error: "Missing required fields: channelId or senderId" });
   }
 
   try {
@@ -542,7 +564,7 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       sender: senderId,
       senderName: req.body.senderName || "Unknown",
       channelId,
-      content: "Uploaded a file",
+      content: `Uploaded a file: ${fileName}`,
       fileId,
       fileName,
       fileType,
@@ -551,6 +573,27 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     });
 
     await newMessage.save();
+
+    // Emit event to notify all users in the channel about the new file
+    io.to(channelId).emit("file_uploaded", {
+      fileId,
+      fileName,
+      fileType,
+      fileSize,
+      senderName: req.body.senderName || "Unknown",
+      channelId,
+      timestamp: new Date(),
+    });
+
+    // Emit a message event for "Uploaded a file"
+    io.to(channelId).emit("message", {
+      _id: newMessage._id.toString(),
+      content: `Uploaded a file: ${fileName}`,
+      sender: senderId,
+      senderName: req.body.senderName || "Unknown",
+      channelId,
+      timestamp: newMessage.timestamp,
+    });
 
     res.status(200).json({
       message: "File uploaded successfully",
@@ -564,7 +607,6 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Retrieve File API
 app.get("/api/files/:id", async (req, res) => {
   try {
