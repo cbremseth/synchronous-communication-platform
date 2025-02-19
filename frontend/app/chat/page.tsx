@@ -162,17 +162,6 @@ export default function Chat({
 
       if (!response.ok) throw new Error("File upload failed");
 
-      const data = await response.json();
-
-      // Emit fileUpload event to notify all users
-      socket.emit("fileUpload", {
-        fileName: data.fileName,
-        fileType: data.fileType,
-        fileSize: data.fileSize,
-        senderName: user.username,
-        channelId: currentChannelId,
-      });
-
       console.log("Log: File uploaded successfully");
     } catch (error) {
       console.error("Error uploading file:", error);
