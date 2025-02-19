@@ -5,14 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Manager } from "socket.io-client";
 import Sidebar from "@/components/ui/sidebar";
-// import ChatInfo from "@/components/ui/chatInfo";
+import ChatInfo from "@/components/ui/chatInfo";
+import { FileInfo } from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
-import { Card } from "@/components/ui/card";
 
 const manager = new Manager("http://localhost:5001");
 const socket = manager.socket("/");
@@ -20,7 +20,7 @@ const socket = manager.socket("/");
 const API_BASE_URL =
   typeof window !== "undefined" && window.location.hostname === "localhost"
     ? "http://localhost:5001"
-    : process.env.NEXT_PUBLIC_API_URL;
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 interface Message {
   _id: string;
@@ -52,14 +52,6 @@ interface MessageResult {
   senderName: string;
 }
 
-// Interface for ChatInfo component - Uploaded Files
-interface FileInfo {
-  fileName: string;
-  fileType: string;
-  fileSize: number;
-  senderName: string;
-}
-
 export default function Chat({
   roomName = "General Chat",
   channelId,
@@ -77,7 +69,7 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
-  const [files, setFiles] = useState<FileInfo[]>([]);
+  const [files, setFiles] = useState<(typeof FileInfo)[]>([]);
 
   // Add function to fetch general channel
   const fetchGeneralChannel = async () => {
@@ -379,39 +371,7 @@ export default function Chat({
 
       <div className="w-64">
         {/* Chat Info Panel */}
-        <div className="w-full h-full bg-gray-200 p-4 flex flex-col justify-between">
-          <h2 className="text-lg font-semibold mb-4">Room Details</h2>
-          <div className="flex flex-col flex-1 justify-between">
-            <Card className="p-3 h-1/2">
-              <h3 className="font-semibold">Participants</h3>
-              <ul className="text-sm">
-                <li>User123</li>
-                <li>User456</li>
-                <li>You</li>
-              </ul>
-            </Card>
-            <Card className="p-3 h-1/2 mt-8">
-              <h3 className="font-semibold">Files</h3>
-              {files.length > 0 ? (
-                <ul className="text-sm">
-                  {files.map((file, index) => (
-                    <li key={index} className="py-1 border-b border-gray-300">
-                      <a
-                        href={`${API_BASE_URL}/api/files/${file.fileName}`}
-                        className="text-blue-600 underline"
-                      >
-                        {file.fileName}
-                      </a>
-                      <p className="text-xs">Uploaded by {file.senderName}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm">No files shared yet</p>
-              )}
-            </Card>
-          </div>
-        </div>
+        <ChatInfo files={files} API_BASE_URL={API_BASE_URL} />
       </div>
     </div>
   );
