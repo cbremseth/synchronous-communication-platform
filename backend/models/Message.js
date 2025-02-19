@@ -27,7 +27,7 @@ const messageSchema = new mongoose.Schema({
   },
   fileId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "fs.files",
+    ref: "file-uploads.files", // initialized bucket in server.js
     default: null,
   },
   fileName: {

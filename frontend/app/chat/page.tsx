@@ -153,7 +153,7 @@ export default function Chat({
         channelId: currentChannelId,
       });
 
-      console.log("File uploaded successfully");
+      console.log("Log: File uploaded successfully");
     } catch (error) {
       console.error("Error uploading file:", error);
     }
@@ -241,7 +241,6 @@ export default function Chat({
       socket.off("connect");
       socket.off("message");
       socket.off("message_history");
-      socket.off("file_uploaded");
     };
   }, [user, isAuthenticated, isLoading, currentChannelId]);
 

@@ -523,8 +523,8 @@ const storage = new GridFsStorage({
       }
 
       const fileInfo = {
-        filename: `${file.originalname}`,
-        bucketName: "uploads",
+        filename: `${Date.now()}-${file.originalname}`,
+        bucketName: "file-uploads",
       };
 
       resolve(fileInfo);
@@ -542,55 +542,53 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       .json({ error: "File upload failed. No file received." });
   }
 
-  if (!req.body.channelId || !req.body.senderId) {
+  const { channelId, senderId, senderName } = req.body;
+  if (!channelId || !senderId) {
     return res
       .status(400)
       .json({ error: "Missing required fields: channelId or senderId" });
   }
 
   try {
-    const { channelId, senderId } = req.body;
     const fileId = req.file.id;
     const fileName = req.file.filename;
     const fileType = req.file.contentType;
     const fileSize = req.file.size;
+    const message_content = `Uploaded a file: ${fileName}`;
 
-    if (!fileId) {
-      throw new Error("File upload failed: No file ID returned from GridFS.");
+    const newMessage = new Message({
+      content: message_content,
+      sender: senderId,
+      senderName: senderName || "Unknown",
+      channelId: channelId,
+      fileId: fileId,
+      fileName: fileName,
+      fileType: fileType,
+      fileSize: fileSize,
+      timestamp: new Date(),
+    });
+
+    try {
+      await newMessage.save();
+      console.log("Message saved successfully");
+    } catch (error) {
+      console.error("Error saving message:", error);
     }
 
-    // Save message with file reference
-    const newMessage = new Message({
-      sender: senderId,
-      senderName: req.body.senderName || "Unknown",
-      channelId,
-      content: `Uploaded a file: ${fileName}`,
-      fileId,
-      fileName,
-      fileType,
-      fileSize,
-      timestamp: new Date(),
-    });
-
-    await newMessage.save();
-
-    // Emit event to notify all users in the channel about the new file
     io.to(channelId).emit("file_uploaded", {
-      fileId,
       fileName,
       fileType,
       fileSize,
-      senderName: req.body.senderName || "Unknown",
+      senderName,
       channelId,
       timestamp: new Date(),
     });
 
-    // Emit a message event for "Uploaded a file"
     io.to(channelId).emit("message", {
       _id: newMessage._id.toString(),
-      content: `Uploaded a file: ${fileName}`,
+      content: message_content,
       sender: senderId,
-      senderName: req.body.senderName || "Unknown",
+      senderName,
       channelId,
       timestamp: newMessage.timestamp,
     });
@@ -607,6 +605,7 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 // Retrieve File API
 app.get("/api/files/:id", async (req, res) => {
   try {
