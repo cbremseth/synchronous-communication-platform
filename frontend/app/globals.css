@@ -76,3 +76,27 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+.chatInfo-files {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #ccc;
+  scrollbar-width: thin;
+  scrollbar-color: #888 #f0f0f0;
+}
+
+/* For Webkit browsers */
+.chatInfo-files::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chatInfo-files::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+.chatInfo-files::-webkit-scrollbar-thumb {
+  background-color: #888;
+  border-radius: 10px;
+  border: 2px solid #f0f0f0;
+}
