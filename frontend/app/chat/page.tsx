@@ -69,7 +69,7 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
-  const [files, setFiles] = useState<(typeof FileInfo)[]>([]);
+  const [files, setFiles] = useState<FileInfo[]>([]);
 
   // Add function to fetch general channel
   const fetchGeneralChannel = async () => {
@@ -90,6 +90,26 @@ export default function Chat({
       setCurrentChannelId(channelId);
     }
   }, [channelId, roomName, user]);
+
+  // Handle fetching files for current channel
+  useEffect(() => {
+    if (currentChannelId) {
+      fetch(`${API_BASE_URL}/api/files/${currentChannelId}`)
+        .then((response) => response.json())
+        .then((data) => {
+          setFiles(data);
+          console.log("All files loaded for channel", currentChannelId);
+        })
+        .catch((err) => {
+          console.log(
+            "Failed to load files for channel",
+            err,
+            currentChannelId,
+          );
+          setFiles([]);
+        });
+    }
+  }, [currentChannelId]);
 
   // Function to handle search functionality in searchbar
   const handleSearch = async (query: string) => {

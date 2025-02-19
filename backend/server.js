@@ -502,16 +502,6 @@ app.delete("/api/users/:id", async (req, res) => {
   }
 });
 
-// Initialize GridFS
-let gfs;
-const conn = mongoose.connection;
-conn.once("open", () => {
-  gfs = new mongoose.mongo.GridFSBucket(conn.db, {
-    bucketName: "uploads",
-  });
-  console.log("GridFS initialized");
-});
-
 // Set up GridFS Storage Engine for File Uploads**
 const storage = new GridFsStorage({
   url: process.env.MONGODB_URI,
@@ -606,21 +596,17 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-// Retrieve File API
-app.get("/api/files/:id", async (req, res) => {
+// Retrieve all files in a given channelId
+app.get("/api/files/:channelId", async (req, res) => {
   try {
-    gfs.files.findOne(
-      { _id: new mongoose.Types.ObjectId(req.params.id) },
-      (err, file) => {
-        if (!file) return res.status(404).json({ error: "No file found" });
-
-        // If file exists, stream it to the response
-        const readstream = gfs.createReadStream(file.filename);
-        res.set("Content-Type", file.contentType);
-        readstream.pipe(res);
-      },
-    );
+    const channelId = req.params.channelId;
+    const files = await Message.find({
+      channelId: channelId,
+      fileId: { $ne: null },
+    }).select("fileName fileSize fileType fileId fileId senderName");
+    res.json(files);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("Error retrieving files:", error);
+    res.status(500).json({ message: "Server error", error });
   }
 });
