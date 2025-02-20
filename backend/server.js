@@ -567,6 +567,7 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
     }
 
     io.to(channelId).emit("file_uploaded", {
+      fileId,
       fileName,
       fileType,
       fileSize,

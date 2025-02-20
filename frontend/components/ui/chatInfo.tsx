@@ -68,7 +68,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ files, API_BASE_URL }) => {
                     <span>
                       <a
                         href={`${API_BASE_URL}/api/preview/${file.fileId}`}
-                        style={{ textDecoration: "none", color: "#908c90" }}
+                        style={{
+                          textDecoration: "none",
+                          color: "#908c90",
+                          pointerEvents: "none",
+                        }}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
