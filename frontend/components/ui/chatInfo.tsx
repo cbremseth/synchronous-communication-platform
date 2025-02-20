@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
+import mongoose from "mongoose";
+import { EyeIcon, DownloadIcon } from "lucide-react";
 
 export interface FileInfo {
   fileName: string;
   fileType: string;
   fileSize: number;
   senderName: string;
+  fileId: mongoose.Schema.Types.ObjectId;
 }
 
 interface ChatInfoProps {
@@ -62,15 +65,43 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ files, API_BASE_URL }) => {
               <ul className="text-sm">
                 {files.map((file, index) => (
                   <li key={index} className="py-1 border-b border-gray-300">
-                    <a
-                      href={`${API_BASE_URL}/api/files/${file.fileName}`}
-                      style={{ textDecoration: "none", color: "#4A90E2" }} // Custom link styles here
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {file.fileName}
-                    </a>
-                    <p className="text-xs">Uploaded by {file.senderName}</p>
+                    <span>
+                      <a
+                        href={`${API_BASE_URL}/api/preview/${file.fileId}`}
+                        style={{ textDecoration: "none", color: "#4A90E2" }}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {file.fileName}
+                      </a>
+                      <p className="text-xs">Uploaded by {file.senderName}</p>
+                    </span>
+                    <span>
+                      <button
+                        className="icon-button mr-2"
+                        onClick={() =>
+                          window.open(
+                            `${API_BASE_URL}/api/preview/${file.fileId}`,
+                            "_blank",
+                          )
+                        }
+                        title="Preview"
+                      >
+                        <EyeIcon className="h-5 w-5 text-gray-500 hover:text-gray-700" />
+                      </button>
+                      <button
+                        className="icon-button"
+                        onClick={() =>
+                          window.open(
+                            `${API_BASE_URL}/api/download/${file.fileId}`,
+                            "_blank",
+                          )
+                        }
+                        title="Download"
+                      >
+                        <DownloadIcon className="h-5 w-5 text-gray-500 hover:text-gray-700" />
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>

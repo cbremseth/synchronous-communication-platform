@@ -12,6 +12,7 @@ import { Server } from "socket.io";
 import seedUsers from "./seed.js"; // Import the seed function
 import multer from "multer";
 import { GridFsStorage } from "multer-gridfs-storage";
+import { GridFSBucket, ObjectId } from "mongodb";
 
 const app = express();
 
@@ -609,4 +610,54 @@ app.get("/api/files/:channelId", async (req, res) => {
     console.error("Error retrieving files:", error);
     res.status(500).json({ message: "Server error", error });
   }
+});
+
+app.get("/api/preview/:fileId", async (req, res) => {
+  try {
+    const fileId = new ObjectId(req.params.fileId);
+
+    const bucket = new GridFSBucket(mongoose.connection.db, {
+      bucketName: "file-uploads",
+    });
+
+    // Find the file in the database to get the contentType
+    const file = await bucket.find({ _id: fileId }).toArray();
+    if (!file || file.length === 0) {
+      return res.status(404).send("File not found");
+    }
+
+    // Set the proper content type
+    res.type(file[0].contentType);
+
+    // Create a download stream and pipe it to the response
+    const downloadStream = bucket.openDownloadStream(fileId);
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("Error sending file:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+// Download files by fileID
+app.get("/api/download/:fileId", async (req, res) => {
+  const fileId = new mongoose.Types.ObjectId(req.params.fileId); // Convert string ID to ObjectId
+  const bucket = new GridFSBucket(mongoose.connection.db, {
+    bucketName: "file-uploads",
+  });
+
+  const file = await bucket.find({ _id: fileId }).toArray();
+  if (file.length === 0) {
+    res.status(404).send("No file found.");
+    return;
+  }
+
+  res.set("Content-Type", file[0].contentType);
+  res.set("Content-Disposition", `attachment; filename="${file[0].filename}"`);
+
+  const downloadStream = bucket.openDownloadStream(fileId);
+  downloadStream.on("error", function (error) {
+    res.status(404).send("Error downloading file: ", error);
+  });
+
+  downloadStream.pipe(res);
 });
