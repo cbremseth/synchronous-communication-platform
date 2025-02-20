@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import mongoose from "mongoose";
-import { EyeIcon, DownloadIcon } from "lucide-react";
+import { EyeIcon, DownloadIcon, ChevronDown } from "lucide-react";
 
 export interface FileInfo {
   fileName: string;
@@ -68,7 +68,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ files, API_BASE_URL }) => {
                     <span>
                       <a
                         href={`${API_BASE_URL}/api/preview/${file.fileId}`}
-                        style={{ textDecoration: "none", color: "#4A90E2" }}
+                        style={{ textDecoration: "none", color: "#908c90" }}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
@@ -117,9 +117,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ files, API_BASE_URL }) => {
                   behavior: "smooth",
                 })
               }
-              className="mt-2 p-2 bg-blue-500 text-white rounded hover:bg-blue-700 cursor-pointer"
+              className="mt-2 p-2 bg-blue-500 text-white rounded hover:bg-blue-700 cursor-pointer flex items-center justify-center"
             >
-              New Files ↓
+              <ChevronDown className="w-5 h-5" />
             </button>
           )}
         </Card>
