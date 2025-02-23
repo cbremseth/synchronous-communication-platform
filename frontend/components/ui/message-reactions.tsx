@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
 import { Button } from "@/components/ui/button";
-import { Smile, MoreHorizontal } from "lucide-react";
+import { Smile } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import Emoji from "@emoji-mart/react";
 
@@ -149,22 +149,13 @@ export default function MessageReactions({
             className={`flex items-center space-x-1 p-1 rounded-md hover:bg-gray-300 ${
               data.users.includes(user?.userID) ? "bg-blue-200" : "bg-gray-200"
             }`}
-            onClick={() => handleEmojiSelect({ native: emoji })}
+            onClick={toggleDetails}
           >
             <span>{emoji}</span>
             <span className="text-sm">{data.count}</span>
           </button>
         ))}
       </div>
-
-      {/* Reaction Details Button */}
-      <Button
-        variant="ghost"
-        onClick={toggleDetails}
-        className="p-2 rounded-md"
-      >
-        <MoreHorizontal className="w-6 h-6 text-gray-600" />
-      </Button>
 
       {/* Emoji Picker Button */}
       <Button variant="ghost" onClick={togglePicker} className="p-2 rounded-md">
@@ -196,7 +187,7 @@ export default function MessageReactions({
       {showDetails && (
         <div
           ref={detailsRef}
-          className="absolute left-0 mt-2 bg-white p-3 rounded-md shadow-lg z-[9999] w-56 max-w-xs border border-gray-300"
+          className="absolute left-0 mt-2 bg-white p-3 rounded-md shadow-lg z51 w-56 max-w-xs border border-gray-300"
           style={{ top: "100%" }} // Pushes below the message
         >
           <h3 className="text-sm font-semibold mb-2">Reactions</h3>
