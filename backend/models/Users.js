@@ -35,7 +35,7 @@ const userSchema = new mongoose.Schema({
   sentRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   status: {
     type: String,
-    enum: ["online", "offline", "busy", "away"],
+    enum: ["online", "offline", "busy"],
     default: "online",
   },
 });
