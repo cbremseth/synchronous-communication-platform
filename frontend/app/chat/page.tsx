@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
+import { FileInfo } from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
@@ -13,12 +14,13 @@ import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
 import MessageReactions from "@/components/ui/message-reactions";
 import { useSocketContext } from "../../context/SocketContext";
+import { Upload } from "lucide-react";
 
 // Use API URL dynamically based on whether the app is running inside Docker or locally
 const API_BASE_URL =
   typeof window !== "undefined" && window.location.hostname === "localhost"
     ? "http://localhost:5001"
-    : process.env.NEXT_PUBLIC_API_URL;
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 interface Message {
   _id: string;
@@ -80,6 +82,7 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
+  const [files, setFiles] = useState<FileInfo[]>([]);
   const socket = useSocketContext();
 
   // Add function to fetch general channel
@@ -101,6 +104,26 @@ export default function Chat({
       setCurrentChannelId(channelId);
     }
   }, [channelId, roomName, user, fetchGeneralChannel]);
+
+  // Handle fetching files for current channel
+  useEffect(() => {
+    if (currentChannelId) {
+      fetch(`${API_BASE_URL}/api/files/${currentChannelId}`)
+        .then((response) => response.json())
+        .then((data) => {
+          setFiles(data);
+          console.log("All files loaded for channel", currentChannelId);
+        })
+        .catch((err) => {
+          console.log(
+            "Failed to load files for channel",
+            err,
+            currentChannelId,
+          );
+          setFiles([]);
+        });
+    }
+  }, [currentChannelId]);
 
   // Function to handle search functionality in searchbar
   const handleSearch = async (query: string) => {
@@ -127,6 +150,51 @@ export default function Chat({
       setMessageResults([]);
     }
   };
+
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    console.log("Preparing to upload file in channel: ", currentChannelId);
+    const file = event.target.files?.[0];
+    if (!file || !user || !currentChannelId) {
+      console.error("Upload failed: Missing user or channel ID");
+      return;
+    }
+    console.log("Information about file:", file);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("senderId", user.userID);
+    formData.append("channelId", currentChannelId);
+    formData.append("senderName", user.username);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("File upload failed");
+
+      console.log("Log: File uploaded successfully");
+    } catch (error) {
+      console.error("Error uploading file:", error);
+    }
+  };
+
+  useEffect(() => {
+    const handleFileUpload = (file: FileInfo) => {
+      console.log("Received a file upload event:", file);
+      setFiles((prevFiles) => [...prevFiles, file]);
+    };
+
+    // Listen for the file_uploaded event
+    socket?.on("file_uploaded", handleFileUpload);
+
+    return () => {
+      socket?.off("file_uploaded", handleFileUpload);
+    };
+  }, [currentChannelId]);
 
   function onClick(message: string) {
     if (!user || !currentChannelId || message.trim() === "") return;
@@ -409,6 +477,10 @@ export default function Chat({
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onClick(message)}
           />
+          <label className="cursor-pointer">
+            <Upload className="w-6 h-6 text-gray-600" />
+            <input type="file" className="hidden" onChange={handleFileUpload} />
+          </label>
           <Button
             className="w-20"
             variant="default"
@@ -420,9 +492,15 @@ export default function Chat({
         </footer>
       </div>
 
-      {/* Chat Info Panel */}
       <div className="w-64">
-        <ChatInfo channelId={currentChannelId} />
+        {/* Chat Info Panel */}
+        {currentChannelId && (
+          <ChatInfo
+            channelId={currentChannelId}
+            files={files}
+            API_BASE_URL={API_BASE_URL}
+          />
+        )}
       </div>
     </div>
   );

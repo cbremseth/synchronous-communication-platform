@@ -1,16 +1,39 @@
-import { useEffect, useState } from "react";
+"use client";
+import { useEffect, useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { useSocketContext } from "@/context/SocketContext";
+import mongoose from "mongoose";
+import { EyeIcon, DownloadIcon, ChevronDown } from "lucide-react";
 
 interface Participant {
   id: string;
   username: string;
   status: "online" | "busy" | "offline";
 }
+export interface FileInfo {
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  senderName: string;
+  fileId: mongoose.Schema.Types.ObjectId;
+}
 
-export default function ChatInfo({ channelId }: { channelId: string }) {
+interface ChatInfoProps {
+  files: FileInfo[];
+  API_BASE_URL: string;
+  channelId: string;
+}
+
+const ChatInfo: React.FC<ChatInfoProps> = ({
+  files,
+  API_BASE_URL,
+  channelId,
+}) => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const socket = useSocketContext();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
   useEffect(() => {
     if (!socket) return;
@@ -42,27 +65,125 @@ export default function ChatInfo({ channelId }: { channelId: string }) {
     };
   }, [socket, channelId]);
 
+  const handleScroll = () => {
+    if (containerRef.current) {
+      const isScrolledToBottom =
+        containerRef.current.scrollHeight - containerRef.current.scrollTop ===
+        containerRef.current.clientHeight;
+      setIsAtBottom(isScrolledToBottom);
+      setShowScrollDown(!isScrolledToBottom);
+    }
+  };
+
+  useEffect(() => {
+    if (containerRef.current && isAtBottom) {
+      containerRef.current.scrollTo({
+        top: containerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [files]);
+
   return (
-    <div className="w-full h-full bg-gray-200 p-4">
-      <Card className="p-3">
-        <h3 className="font-semibold mb-2">Participants</h3>
-        <ul className="space-y-2">
-          {participants.map((participant) => (
-            <li key={participant.id} className="flex items-center gap-2">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  participant.status === "online"
-                    ? "bg-green-500"
-                    : participant.status === "busy"
-                      ? "bg-red-500"
-                      : "bg-gray-500"
-                }`}
-              />
-              <span>{participant.username}</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+    <div className="w-full h-full bg-gray-200 p-4 flex flex-col justify-between">
+      <h2 className="text-lg font-semibold mb-4">Room Details</h2>
+      <div className="flex flex-col flex-1 justify-between">
+        <Card className="p-3 h-1/2 overflow-hidden">
+          <h3 className="font-semibold mb-2">Participants</h3>
+          <ul className="space-y-2">
+            {participants.map((participant) => (
+              <li key={participant.id} className="flex items-center gap-2">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    participant.status === "online"
+                      ? "bg-green-500"
+                      : participant.status === "busy"
+                        ? "bg-red-500"
+                        : "bg-gray-500"
+                  }`}
+                />
+                <span>{participant.username}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+        <Card className="p-3 h-1/2 mt-8 overflow-auto">
+          <h3 className="font-semibold">Files</h3>
+          <hr className="mb-4 border-t border-gray-300" />
+          {files.length > 0 ? (
+            <div
+              ref={containerRef}
+              className="overflow-auto max-h-96"
+              onScroll={handleScroll}
+            >
+              <ul className="text-sm">
+                {files.map((file, index) => (
+                  <li key={index} className="py-1 border-b border-gray-300">
+                    <span>
+                      <a
+                        href={`${API_BASE_URL}/api/preview/${file.fileId}`}
+                        style={{
+                          textDecoration: "none",
+                          color: "#908c90",
+                          pointerEvents: "none",
+                        }}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {file.fileName}
+                      </a>
+                      <p className="text-xs">Uploaded by {file.senderName}</p>
+                    </span>
+                    <span>
+                      <button
+                        className="icon-button mr-2"
+                        onClick={() =>
+                          window.open(
+                            `${API_BASE_URL}/api/preview/${file.fileId}`,
+                            "_blank",
+                          )
+                        }
+                        title="Preview"
+                      >
+                        <EyeIcon className="h-5 w-5 text-gray-500 hover:text-gray-700" />
+                      </button>
+                      <button
+                        className="icon-button"
+                        onClick={() =>
+                          window.open(
+                            `${API_BASE_URL}/api/download/${file.fileId}`,
+                            "_blank",
+                          )
+                        }
+                        title="Download"
+                      >
+                        <DownloadIcon className="h-5 w-5 text-gray-500 hover:text-gray-700" />
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-sm">No files shared yet</p>
+          )}
+          {showScrollDown && (
+            <button
+              onClick={() =>
+                containerRef.current?.scrollTo({
+                  top: containerRef.current.scrollHeight,
+                  behavior: "smooth",
+                })
+              }
+              className="mt-2 p-2 bg-blue-500 text-white rounded hover:bg-blue-700 cursor-pointer flex items-center justify-center"
+            >
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          )}
+        </Card>
+      </div>
     </div>
   );
-}
+};
+
+export default ChatInfo;

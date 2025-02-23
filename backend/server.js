@@ -10,6 +10,9 @@ config({ path: "../.env" });
 import { createServer } from "http";
 import { Server } from "socket.io";
 import seedUsers from "./seed.js"; // Import the seed function
+import multer from "multer";
+import { GridFsStorage } from "multer-gridfs-storage";
+import { GridFSBucket, ObjectId } from "mongodb";
 
 const app = express();
 
@@ -454,6 +457,25 @@ io.on("connection", async (socket) => {
     }
   });
 
+  // Handle file uploads
+  socket.on(
+    "fileUpload",
+    async ({ fileName, fileSize, fileType, senderName, channelId }) => {
+      try {
+        console.log(`File upload: ${fileName} by ${senderName}`);
+
+        // Emit file upload to all users in channel
+        io.to(channelId.toString()).emit("file_uploaded", {
+          fileName,
+          fileType,
+          fileSize,
+          senderName,
+        });
+      } catch (error) {
+        console.log("Error handling file upload event: ", error);
+      }
+    },
+  );
   socket.on("add_reaction", async ({ messageId, emoji, userId }) => {
     try {
       const message = await Message.findById(messageId);
@@ -559,6 +581,165 @@ app.delete("/api/users/:id", async (req, res) => {
   }
 });
 
+// Set up GridFS Storage Engine for File Uploads**
+const storage = new GridFsStorage({
+  url: process.env.MONGODB_URI,
+  options: { useNewUrlParser: true, useUnifiedTopology: true },
+  file: (req, file) => {
+    return new Promise((resolve, reject) => {
+      if (!file) {
+        reject(new Error("File is missing"));
+      }
+
+      const fileInfo = {
+        filename: `${Date.now()}-${file.originalname}`,
+        bucketName: "file-uploads",
+      };
+
+      resolve(fileInfo);
+    });
+  },
+});
+
+const upload = multer({ storage });
+
+// Upload File API
+app.post("/api/upload", upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res
+      .status(400)
+      .json({ error: "File upload failed. No file received." });
+  }
+
+  const { channelId, senderId, senderName } = req.body;
+  if (!channelId || !senderId) {
+    return res
+      .status(400)
+      .json({ error: "Missing required fields: channelId or senderId" });
+  }
+
+  try {
+    const fileId = req.file.id;
+    const fileName = req.file.filename;
+    const fileType = req.file.contentType;
+    const fileSize = req.file.size;
+    const message_content = `Uploaded a file: ${fileName}`;
+
+    const newMessage = new Message({
+      content: message_content,
+      sender: senderId,
+      senderName: senderName || "Unknown",
+      channelId: channelId,
+      fileId: fileId,
+      fileName: fileName,
+      fileType: fileType,
+      fileSize: fileSize,
+      timestamp: new Date(),
+    });
+
+    try {
+      await newMessage.save();
+      console.log("Message saved successfully");
+    } catch (error) {
+      console.error("Error saving message:", error);
+    }
+
+    io.to(channelId).emit("file_uploaded", {
+      fileId,
+      fileName,
+      fileType,
+      fileSize,
+      senderName,
+      channelId,
+      timestamp: new Date(),
+    });
+
+    io.to(channelId).emit("message", {
+      _id: newMessage._id.toString(),
+      content: message_content,
+      sender: senderId,
+      senderName,
+      channelId,
+      timestamp: newMessage.timestamp,
+    });
+
+    res.status(200).json({
+      message: "File uploaded successfully",
+      fileId,
+      fileName,
+      fileType,
+      fileSize,
+    });
+  } catch (error) {
+    console.error("File upload error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Retrieve all files in a given channelId
+app.get("/api/files/:channelId", async (req, res) => {
+  try {
+    const channelId = req.params.channelId;
+    const files = await Message.find({
+      channelId: channelId,
+      fileId: { $ne: null },
+    }).select("fileName fileSize fileType fileId fileId senderName");
+    res.json(files);
+  } catch (error) {
+    console.error("Error retrieving files:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+app.get("/api/preview/:fileId", async (req, res) => {
+  try {
+    const fileId = new ObjectId(req.params.fileId);
+
+    const bucket = new GridFSBucket(mongoose.connection.db, {
+      bucketName: "file-uploads",
+    });
+
+    // Find the file in the database to get the contentType
+    const file = await bucket.find({ _id: fileId }).toArray();
+    if (!file || file.length === 0) {
+      return res.status(404).send("File not found");
+    }
+
+    // Set the proper content type
+    res.type(file[0].contentType);
+
+    // Create a download stream and pipe it to the response
+    const downloadStream = bucket.openDownloadStream(fileId);
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("Error sending file:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+// Download files by fileID
+app.get("/api/download/:fileId", async (req, res) => {
+  const fileId = new mongoose.Types.ObjectId(req.params.fileId); // Convert string ID to ObjectId
+  const bucket = new GridFSBucket(mongoose.connection.db, {
+    bucketName: "file-uploads",
+  });
+
+  const file = await bucket.find({ _id: fileId }).toArray();
+  if (file.length === 0) {
+    res.status(404).send("No file found.");
+    return;
+  }
+
+  res.set("Content-Type", file[0].contentType);
+  res.set("Content-Disposition", `attachment; filename="${file[0].filename}"`);
+
+  const downloadStream = bucket.openDownloadStream(fileId);
+  downloadStream.on("error", function (error) {
+    res.status(404).send("Error downloading file: ", error);
+  });
+
+  downloadStream.pipe(res);
+});
 // Endpoint to fetch usernames and emoji from message ID
 app.post("/api/reactionDetails/:messageId", async (req, res) => {
   try {
