@@ -342,6 +342,7 @@ io.on("connection", async (socket) => {
         senderName: msg.sender ? msg.sender.username : "Deleted User",
         channelId: msg.channelId.toString(),
         timestamp: msg.timestamp,
+        reactions: msg.reactions,
       }));
 
       socket.emit("message_history", formattedMessages);
@@ -452,6 +453,55 @@ io.on("connection", async (socket) => {
       console.error("Error updating message:", error);
     }
   });
+
+  socket.on("add_reaction", async ({ messageId, emoji, userId }) => {
+    try {
+      const message = await Message.findById(messageId);
+      if (!message) {
+        console.error("Message not found:", messageId);
+        return;
+      }
+
+      // Initialize pair of emoji key, value
+      if (!message.reactions[emoji]) {
+        message.reactions[emoji] = { count: 0, users: [] };
+      }
+
+      // Initialize reactions if it doesn't exist
+      if (!message.reactions.has(emoji)) {
+        message.reactions.set(emoji, { count: 0, users: [] });
+      }
+
+      const reaction = message.reactions.get(emoji);
+      const userIndex = reaction.users.indexOf(userId);
+
+      if (userIndex === -1) {
+        // User has NOT reacted yet → Add reaction
+        reaction.count += 1;
+        reaction.users.push(userId);
+      } else {
+        // User has already reacted → Remove reaction
+        reaction.count -= 1;
+        reaction.users.splice(userIndex, 1);
+
+        // If no users left, remove the emoji from reactions
+        if (reaction.count === 0) {
+          message.reactions.delete(emoji);
+        }
+      }
+
+      await message.save();
+      console.log("Updated Reactions:", Object.fromEntries(message.reactions));
+
+      // Emit only to users in the same channel
+      io.to(message.channelId.toString()).emit("reaction_updated", {
+        messageId,
+        reactions: Object.fromEntries(message.reactions), // Convert Map to Object for frontend
+      });
+    } catch (error) {
+      console.error("Error updating reaction:", error);
+    }
+  });
 });
 
 httpServer.listen(PORT, () => {
@@ -506,6 +556,43 @@ app.delete("/api/users/:id", async (req, res) => {
     res.status(200).json({ message: "User deleted successfully." });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Endpoint to fetch usernames and emoji from message ID
+app.post("/api/reactionDetails/:messageId", async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ error: "Invalid message ID" });
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      message.reactions = {};
+    }
+
+    /// Convert Map to Object and extract user details
+    const reactionDetails = {};
+
+    // Fetch user details for all reactions
+    for (const [emoji, { count, users }] of message.reactions.entries()) {
+      const userObjects = await User.find(
+        { _id: { $in: users } },
+        { username: 1, _id: 0 },
+      );
+
+      reactionDetails[emoji] = {
+        count,
+        users: userObjects.map((user) => user.username), // Convert user IDs to usernames
+      };
+    }
+    res.json({ reactionDetails });
+    console.log("Reaction Details:", reactionDetails);
+  } catch (error) {
+    console.error("Error fetching reaction details:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
