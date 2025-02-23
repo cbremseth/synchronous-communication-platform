@@ -1,9 +1,9 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Manager } from "socket.io-client";
 import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
 import { FileInfo } from "@/components/ui/chatInfo";
@@ -12,10 +12,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
+import MessageReactions from "@/components/ui/message-reactions";
+import { useSocketContext } from "../../context/SocketContext";
 import { Upload } from "lucide-react";
 
-const manager = new Manager("http://localhost:5001");
-const socket = manager.socket("/");
 // Use API URL dynamically based on whether the app is running inside Docker or locally
 const API_BASE_URL =
   typeof window !== "undefined" && window.location.hostname === "localhost"
@@ -30,12 +30,25 @@ interface Message {
   timestamp?: string;
   isEditing?: boolean;
   channelId: string;
+  reactions: {
+    [emoji: string]: {
+      count: number; // Number of times this emoji has been reacted to
+      users: string[]; // List of user IDs who reacted with this emoji
+    };
+  };
 }
 
 interface MessageProps {
   message: string;
   sender: string;
   senderName: string;
+  messageId: string;
+  reactions: {
+    [emoji: string]: {
+      count: number;
+      users: string[];
+    };
+  };
 }
 
 // Interfaces for search results: Users
@@ -70,9 +83,10 @@ export default function Chat({
     channelId,
   );
   const [files, setFiles] = useState<FileInfo[]>([]);
+  const socket = useSocketContext();
 
   // Add function to fetch general channel
-  const fetchGeneralChannel = async () => {
+  const fetchGeneralChannel = useCallback(async () => {
     try {
       if (!user) return;
       const generalChannel = await getOrCreateGeneralChannel(user.userID);
@@ -81,7 +95,7 @@ export default function Chat({
     } catch (error) {
       console.error("Error fetching general channel:", error);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!channelId && roomName === "General Chat") {
@@ -89,7 +103,7 @@ export default function Chat({
     } else {
       setCurrentChannelId(channelId);
     }
-  }, [channelId, roomName, user]);
+  }, [channelId, roomName, user, fetchGeneralChannel]);
 
   // Handle fetching files for current channel
   useEffect(() => {
@@ -175,17 +189,17 @@ export default function Chat({
     };
 
     // Listen for the file_uploaded event
-    socket.on("file_uploaded", handleFileUpload);
+    socket?.on("file_uploaded", handleFileUpload);
 
     return () => {
-      socket.off("file_uploaded", handleFileUpload);
+      socket?.off("file_uploaded", handleFileUpload);
     };
   }, [currentChannelId]);
 
   function onClick(message: string) {
     if (!user || !currentChannelId || message.trim() === "") return;
 
-    socket.emit("message", {
+    socket?.emit("message", {
       content: message,
       sender: user.userID,
       senderName: user.username,
@@ -206,31 +220,31 @@ export default function Chat({
     if (!user || !currentChannelId) return;
 
     // Ensure socket is connected
-    if (!socket.connected) {
-      socket.connect();
+    if (!socket?.connected) {
+      socket?.connect();
     }
 
     // Clear messages when switching channels
     setMessages([]);
 
     // Join the channel
-    socket.emit("join_channel", currentChannelId);
+    socket?.emit("join_channel", currentChannelId);
 
     // Add message history listener
-    socket.on("message_history", (history: Message[]) => {
+    socket?.on("message_history", (history: Message[]) => {
       console.log("Received message history:", history);
       setMessages(history);
     });
 
     // Message listener for new messages
-    socket.on("message", (message: Message) => {
+    socket?.on("message", (message: Message) => {
       if (message.channelId === currentChannelId) {
         setMessages((prevMessages) => [...prevMessages, message]);
       }
     });
 
     // Add new socket listener for message updates
-    socket.on("messageUpdated", (updatedMessage: Message) => {
+    socket?.on("messageUpdated", (updatedMessage: Message) => {
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg._id === updatedMessage._id
@@ -241,17 +255,92 @@ export default function Chat({
     });
 
     // Immediately request message history if already connected
-    if (socket.connected) {
-      socket.emit("get_message_history");
+    if (socket?.connected) {
+      socket?.emit("get_message_history");
     }
 
     // Cleanup function
     return () => {
-      socket.off("connect");
-      socket.off("message");
-      socket.off("message_history");
+      socket?.off("connect");
+      socket?.off("message");
+      socket?.off("message_history");
     };
-  }, [user, isAuthenticated, isLoading, currentChannelId]);
+  }, [user, isAuthenticated, isLoading, currentChannelId, router, socket]);
+
+  useEffect(() => {
+    socket?.on("reaction_updated", ({ messageId, reactions }) => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg._id === messageId ? { ...msg, reactions } : msg,
+        ),
+      );
+    });
+
+    return () => {
+      socket?.off("reaction_updated");
+    };
+  }, []);
+
+  // Function to handle emoji reactions
+  const handleReaction = (messageId: string, emoji: string) => {
+    if (!user) return;
+
+    socket?.emit("add_reaction", {
+      messageId,
+      emoji,
+      userId: user.userID,
+    });
+
+    setMessages((prevMessages) =>
+      prevMessages.map((msg) =>
+        msg._id === messageId
+          ? {
+              ...msg,
+              reactions: {
+                ...msg.reactions,
+                [emoji]: {
+                  count: (msg.reactions?.[emoji]?.count || 0) + 1,
+                  users: [
+                    ...(msg.reactions?.[emoji]?.users || []),
+                    user.userID,
+                  ],
+                },
+              },
+            }
+          : msg,
+      ),
+    );
+  };
+
+  // Fetch reaction details for a message
+  const getReactionDetails = async (messageId: string) => {
+    try {
+      if (!messageId) {
+        console.error("Invalid messageId:", messageId);
+        return {};
+      }
+
+      console.log("Fetching reactions for messageId:", messageId);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reactionDetails/${messageId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch reaction details");
+      }
+
+      const data = await response.json();
+      return data.reactionDetails;
+    } catch (error) {
+      console.error("Error fetching reaction details:", error);
+      return {};
+    }
+  };
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -275,7 +364,12 @@ export default function Chat({
     return null;
   }
 
-  const ReceivedMessage = ({ message, senderName }: MessageProps) => (
+  const ReceivedMessage = ({
+    message,
+    senderName,
+    messageId,
+    reactions,
+  }: MessageProps) => (
     <div className="flex items-end space-x-2">
       <Avatar className="bg-gray-100 dark:bg-gray-800">
         <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
@@ -284,17 +378,34 @@ export default function Chat({
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
           <p className="text-sm">{message}</p>
+          <MessageReactions
+            messageId={messageId}
+            reactions={reactions || {}}
+            onReact={handleReaction}
+            getReactionDetails={getReactionDetails}
+          />
         </div>
       </div>
     </div>
   );
 
-  const SentMessage = ({ message, senderName }: MessageProps) => (
+  const SentMessage = ({
+    message,
+    senderName,
+    messageId,
+    reactions,
+  }: MessageProps) => (
     <div className="flex items-end justify-end space-x-2">
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-blue-500 text-white">
           <p className="text-sm">{message}</p>
+          <MessageReactions
+            messageId={messageId}
+            reactions={reactions || {}}
+            onReact={handleReaction}
+            getReactionDetails={getReactionDetails}
+          />
         </div>
       </div>
       <Avatar className="bg-gray-100 dark:bg-gray-800">
@@ -341,6 +452,8 @@ export default function Chat({
                 message={msg.content}
                 sender={msg.sender}
                 senderName={msg.senderName}
+                messageId={msg._id}
+                reactions={msg.reactions || {}}
               />
             ) : (
               <ReceivedMessage
@@ -348,6 +461,8 @@ export default function Chat({
                 message={msg.content}
                 sender={msg.sender}
                 senderName={msg.senderName}
+                messageId={msg._id}
+                reactions={msg.reactions || {}}
               />
             ),
           )}
@@ -379,7 +494,13 @@ export default function Chat({
 
       <div className="w-64">
         {/* Chat Info Panel */}
-        <ChatInfo files={files} API_BASE_URL={API_BASE_URL} />
+        {currentChannelId && (
+          <ChatInfo
+            channelId={currentChannelId}
+            files={files}
+            API_BASE_URL={API_BASE_URL}
+          />
+        )}
       </div>
     </div>
   );

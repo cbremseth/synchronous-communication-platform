@@ -1,8 +1,15 @@
-import React, { useEffect, useRef, useState } from "react";
+"use client";
+import { useEffect, useState, useRef } from "react";
 import { Card } from "@/components/ui/card";
+import { useSocketContext } from "@/context/SocketContext";
 import mongoose from "mongoose";
 import { EyeIcon, DownloadIcon, ChevronDown } from "lucide-react";
 
+interface Participant {
+  id: string;
+  username: string;
+  status: "online" | "busy" | "offline";
+}
 export interface FileInfo {
   fileName: string;
   fileType: string;
@@ -14,12 +21,49 @@ export interface FileInfo {
 interface ChatInfoProps {
   files: FileInfo[];
   API_BASE_URL: string;
+  channelId: string;
 }
 
-const ChatInfo: React.FC<ChatInfoProps> = ({ files, API_BASE_URL }) => {
+const ChatInfo: React.FC<ChatInfoProps> = ({
+  files,
+  API_BASE_URL,
+  channelId,
+}) => {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const socket = useSocketContext();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showScrollDown, setShowScrollDown] = useState(false);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.emit("join_channel", channelId);
+
+    socket.on("channel_participants", (channelParticipants: Participant[]) => {
+      console.log("Received participants:", channelParticipants);
+      setParticipants(channelParticipants);
+    });
+
+    socket.on(
+      "statusUpdated",
+      ({ userId, status }: { userId: string; status: string }) => {
+        console.log("Status update received:", { userId, status });
+        setParticipants((prev) =>
+          prev.map((p) =>
+            p.id === userId
+              ? { ...p, status: status as "online" | "busy" | "offline" }
+              : p,
+          ),
+        );
+      },
+    );
+
+    return () => {
+      socket.off("channel_participants");
+      socket.off("statusUpdated");
+    };
+  }, [socket, channelId]);
 
   const handleScroll = () => {
     if (containerRef.current) {
@@ -38,19 +82,29 @@ const ChatInfo: React.FC<ChatInfoProps> = ({ files, API_BASE_URL }) => {
         behavior: "smooth",
       });
     }
-  }, [files]); // Only rerun the effect if files array changes
+  }, [files]);
 
   return (
     <div className="w-full h-full bg-gray-200 p-4 flex flex-col justify-between">
       <h2 className="text-lg font-semibold mb-4">Room Details</h2>
       <div className="flex flex-col flex-1 justify-between">
         <Card className="p-3 h-1/2 overflow-hidden">
-          <h3 className="font-semibold">Participants</h3>
-          <hr className="mb-4 border-t border-gray-300" />
-          <ul className="text-sm">
-            <li>User123</li>
-            <li>User456</li>
-            <li>You</li>
+          <h3 className="font-semibold mb-2">Participants</h3>
+          <ul className="space-y-2">
+            {participants.map((participant) => (
+              <li key={participant.id} className="flex items-center gap-2">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    participant.status === "online"
+                      ? "bg-green-500"
+                      : participant.status === "busy"
+                        ? "bg-red-500"
+                        : "bg-gray-500"
+                  }`}
+                />
+                <span>{participant.username}</span>
+              </li>
+            ))}
           </ul>
         </Card>
         <Card className="p-3 h-1/2 mt-8 overflow-auto">

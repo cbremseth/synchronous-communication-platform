@@ -345,11 +345,41 @@ io.on("connection", async (socket) => {
         senderName: msg.sender ? msg.sender.username : "Deleted User",
         channelId: msg.channelId.toString(),
         timestamp: msg.timestamp,
+        reactions: msg.reactions,
       }));
 
       socket.emit("message_history", formattedMessages);
+
+      // Send channel participants
+      const channel = await Channel.findById(channelId).populate(
+        "users",
+        "username status",
+      );
+      const participants = channel.users.map((user) => ({
+        id: user._id.toString(),
+        username: user.username,
+        status: user.status,
+      }));
+      io.to(channelId).emit("channel_participants", participants);
     } catch (error) {
       console.error("Error in join_channel:", error);
+    }
+  });
+
+  socket.on("update_status", async ({ userId, status }) => {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        console.error("User not found:", userId);
+        return;
+      }
+
+      user.status = status;
+      await user.save();
+
+      io.emit("statusUpdated", { userId, status });
+    } catch (error) {
+      console.error("Error updating status:", error);
     }
   });
 
@@ -446,6 +476,54 @@ io.on("connection", async (socket) => {
       }
     },
   );
+  socket.on("add_reaction", async ({ messageId, emoji, userId }) => {
+    try {
+      const message = await Message.findById(messageId);
+      if (!message) {
+        console.error("Message not found:", messageId);
+        return;
+      }
+
+      // Initialize pair of emoji key, value
+      if (!message.reactions[emoji]) {
+        message.reactions[emoji] = { count: 0, users: [] };
+      }
+
+      // Initialize reactions if it doesn't exist
+      if (!message.reactions.has(emoji)) {
+        message.reactions.set(emoji, { count: 0, users: [] });
+      }
+
+      const reaction = message.reactions.get(emoji);
+      const userIndex = reaction.users.indexOf(userId);
+
+      if (userIndex === -1) {
+        // User has NOT reacted yet → Add reaction
+        reaction.count += 1;
+        reaction.users.push(userId);
+      } else {
+        // User has already reacted → Remove reaction
+        reaction.count -= 1;
+        reaction.users.splice(userIndex, 1);
+
+        // If no users left, remove the emoji from reactions
+        if (reaction.count === 0) {
+          message.reactions.delete(emoji);
+        }
+      }
+
+      await message.save();
+      console.log("Updated Reactions:", Object.fromEntries(message.reactions));
+
+      // Emit only to users in the same channel
+      io.to(message.channelId.toString()).emit("reaction_updated", {
+        messageId,
+        reactions: Object.fromEntries(message.reactions), // Convert Map to Object for frontend
+      });
+    } catch (error) {
+      console.error("Error updating reaction:", error);
+    }
+  });
 });
 
 httpServer.listen(PORT, () => {
@@ -661,4 +739,63 @@ app.get("/api/download/:fileId", async (req, res) => {
   });
 
   downloadStream.pipe(res);
+});
+// Endpoint to fetch usernames and emoji from message ID
+app.post("/api/reactionDetails/:messageId", async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ error: "Invalid message ID" });
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      message.reactions = {};
+    }
+
+    /// Convert Map to Object and extract user details
+    const reactionDetails = {};
+
+    // Fetch user details for all reactions
+    for (const [emoji, { count, users }] of message.reactions.entries()) {
+      const userObjects = await User.find(
+        { _id: { $in: users } },
+        { username: 1, _id: 0 },
+      );
+
+      reactionDetails[emoji] = {
+        count,
+        users: userObjects.map((user) => user.username), // Convert user IDs to usernames
+      };
+    }
+    res.json({ reactionDetails });
+    console.log("Reaction Details:", reactionDetails);
+  } catch (error) {
+    console.error("Error fetching reaction details:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update user status endpoint
+app.put("/api/users/:userId/status", async (req, res) => {
+  const userId = req.params.userId;
+  const { status } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ message: "Status is required" });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    user.status = status;
+    await user.save();
+    res.status(200).json({ message: "Status updated successfully", user });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
 });
