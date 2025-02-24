@@ -18,6 +18,7 @@ interface MessageReactionsProps {
   getReactionDetails: (messageId: string) => Promise<{
     [emoji: string]: { count: number; users: string[] };
   }>;
+  API_BASE_URL: string;
 }
 
 export default function MessageReactions({
@@ -25,6 +26,7 @@ export default function MessageReactions({
   reactions,
   onReact,
   getReactionDetails,
+  API_BASE_URL,
 }: MessageReactionsProps) {
   const { user } = useAuth();
   const [localReactions, setLocalReactions] = useState(reactions);
@@ -53,13 +55,6 @@ export default function MessageReactions({
     }
   }, [showDetails]);
 
-  // Load usernames when showing the reaction details
-  useEffect(() => {
-    if (showDetails) {
-      getReactionDetails(messageId).then(setLocalReactions);
-    }
-  }, [showDetails]);
-
   // Toggle emoji picker
   const togglePicker = () => setShowPicker((prev) => !prev);
 
@@ -67,9 +62,20 @@ export default function MessageReactions({
   const toggleDetails = () => setShowDetails((prev) => !prev);
 
   // Handle emoji selection
-  const handleEmojiSelect = (emoji: typeof Emoji) => {
+  const handleEmojiSelect = async (emoji: typeof Emoji) => {
     if (!user) return;
-    const selectedEmoji = emoji.native;
+    let selectedEmoji = emoji.native;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/custom-emojis/${emoji.id}`);
+
+      if (res.ok) {
+        const customEmojis = await res.json();
+        selectedEmoji = customEmojis.id;
+      }
+    } catch (error) {
+      console.error("Error fetching custom emoji:", error);
+    }
 
     // Update reactions optimistically
     setLocalReactions((prevReactions) => {
@@ -183,18 +189,21 @@ export default function MessageReactions({
           </div>
         </div>
       )}
-      {/* Reaction Details Popup */}
+      {/* Centered Reactions Popup */}
       {showDetails && (
         <div
-          ref={detailsRef}
-          className="absolute left-0 mt-2 bg-white p-3 rounded-md shadow-lg z51 w-56 max-w-xs border border-gray-300"
-          style={{ top: "100%" }} // Pushes below the message
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+          onClick={() => setShowDetails(false)} // Close when clicking outside
         >
-          <h3 className="text-sm font-semibold mb-2">Reactions</h3>
-          {loadingDetails ? (
-            <p className="text-xs text-gray-500">Loading...</p>
-          ) : (
-            Object.entries(reactionDetails).map(([emoji, data]) => (
+          <div
+            ref={detailsRef}
+            className="bg-white p-4 rounded-lg shadow-lg max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+          >
+            <h3 className="z-51 text-sm font-semibold mb-2 text-center">
+              Reactions
+            </h3>
+            {Object.entries(reactionDetails).map(([emoji, data]) => (
               <div key={emoji} className="py-1">
                 <div className="flex justify-between items-center">
                   <span>{emoji}</span>
@@ -208,8 +217,17 @@ export default function MessageReactions({
                   ))}
                 </ul>
               </div>
-            ))
-          )}
+            ))}
+            <div className="flex justify-end mt-4">
+              <Button
+                className="z90"
+                variant="ghost"
+                onClick={() => setShowDetails(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

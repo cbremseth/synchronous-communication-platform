@@ -307,7 +307,7 @@ export default function Chat({
     return () => {
       socket?.off("reaction_updated");
     };
-  }, []);
+  }, [socket]);
 
   // Function to handle emoji reactions
   const handleReaction = (messageId: string, emoji: string) => {
@@ -428,12 +428,15 @@ export default function Chat({
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-blue-500 text-white">
           <p className="text-sm">{message}</p>
-          <MessageReactions
-            messageId={messageId}
-            reactions={reactions || {}}
-            onReact={handleReaction}
-            getReactionDetails={getReactionDetails}
-          />
+          <div className="text-black">
+            <MessageReactions
+              messageId={messageId}
+              reactions={reactions || {}}
+              onReact={handleReaction}
+              getReactionDetails={getReactionDetails}
+              API_BASE_URL={API_BASE_URL}
+            />
+          </div>
         </div>
       </div>
       <Avatar className="bg-gray-100 dark:bg-gray-800">
