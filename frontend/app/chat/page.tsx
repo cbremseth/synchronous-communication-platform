@@ -14,11 +14,13 @@ import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
 import MessageReactions from "@/components/ui/message-reactions";
 import { useSocketContext } from "../../context/SocketContext";
-import { Upload } from "lucide-react";
-import { Smile } from "lucide-react";
+import { Upload, Smile } from "lucide-react";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
 import Emoji from "@emoji-mart/react";
+import { init, SearchIndex } from "emoji-mart";
+
+init({ data });
 
 // Use API URL dynamically based on whether the app is running inside Docker or locally
 const API_BASE_URL =
@@ -202,17 +204,21 @@ export default function Chat({
     };
   }, [currentChannelId]);
 
-  function onClick(message: string) {
+  const onClick = async () => {
     if (!user || !currentChannelId || message.trim() === "") return;
 
+    // Convert shortcodes before sending
+    const finalMessage = await convertShortcodesToEmoji(message);
+
+    console.log("converted messages with shortcodes: ", finalMessage);
     socket?.emit("message", {
-      content: message,
+      content: finalMessage,
       sender: user.userID,
       senderName: user.username,
       channelId: currentChannelId,
     });
     setMessage("");
-  }
+  };
 
   useEffect(() => {
     console.log("Auth state:", { user, isLoading, isAuthenticated });
@@ -420,6 +426,39 @@ export default function Chat({
     </div>
   );
 
+  // Function to replace shortcodes i.e ":smile:" with actual emojis
+  const convertShortcodesToEmoji = async (text: string) => {
+    // Regular expression to find :emoji_shortcodes:
+    const emojiRegex = /:([a-zA-Z0-9_+-]+):/g;
+
+    // Extract all matches
+    const matches = [...text.matchAll(emojiRegex)];
+
+    // If no shortcodes found, return original text
+    if (matches.length === 0) return text;
+
+    // Process all matches asynchronously
+    const replacedTextArray = await Promise.all(
+      matches.map(async (match) => {
+        const shortcode = match[1]; // Extract emoji name from match
+        const emojis = await SearchIndex.search(shortcode); // Search for the emoji
+
+        return emojis && emojis.length > 0
+          ? emojis[0].skins[0].native
+          : match[0]; // Replace if found, else keep original
+      }),
+    );
+
+    // Replace the shortcodes in text with the actual emoji
+    let replacedText = text;
+    matches.forEach((match, index) => {
+      replacedText = replacedText.replace(match[0], replacedTextArray[index]);
+    });
+
+    console.log("Converted Text:", replacedText);
+    return replacedText;
+  };
+
   return (
     <div className="flex w-full h-screen">
       {/* Sidebar */}
@@ -482,7 +521,7 @@ export default function Chat({
               placeholder="Type a message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onClick(message)}
+              onKeyDown={(e) => e.key === "Enter" && onClick()}
             />
             {/* Emoji Picker Button */}
             <button
@@ -526,7 +565,7 @@ export default function Chat({
             className="w-20"
             variant="default"
             size="lg"
-            onClick={() => onClick(message)}
+            onClick={() => onClick()}
           >
             Send
           </Button>
