@@ -218,7 +218,7 @@ export default function Chat({
     return () => {
       socket?.off("file_uploaded", handleFileUpload);
     };
-  }, [currentChannelId]);
+  }, [currentChannelId, socket]);
 
   const onClick = async () => {
     if (!user || !currentChannelId || message.trim() === "") return;
