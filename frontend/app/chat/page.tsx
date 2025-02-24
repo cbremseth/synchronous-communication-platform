@@ -15,6 +15,10 @@ import { useRouter } from "next/navigation";
 import MessageReactions from "@/components/ui/message-reactions";
 import { useSocketContext } from "../../context/SocketContext";
 import { Upload } from "lucide-react";
+import { Smile } from "lucide-react";
+import Picker from "@emoji-mart/react";
+import data from "@emoji-mart/data";
+import Emoji from "@emoji-mart/react";
 
 // Use API URL dynamically based on whether the app is running inside Docker or locally
 const API_BASE_URL =
@@ -83,6 +87,8 @@ export default function Chat({
     channelId,
   );
   const [files, setFiles] = useState<FileInfo[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const socket = useSocketContext();
 
   // Add function to fetch general channel
@@ -469,14 +475,49 @@ export default function Chat({
           <div ref={messagesEndRef} />
         </main>
 
-        <footer className="flex-none flex items-center space-x-2 border-t p-4 bg-white">
-          <Input
-            className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-4 border-cyan-950"
-            placeholder="Type a message"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onClick(message)}
-          />
+        <footer className="flex-none flex items-center space-x-2 border-t p-4 bg-white relative">
+          <div className="relative flex-1">
+            <Input
+              className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-4 border-cyan-950"
+              placeholder="Type a message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onClick(message)}
+            />
+            {/* Emoji Picker Button */}
+            <button
+              onClick={() => setShowPicker((prev) => !prev)}
+              className="absolute right-2 top-2"
+            >
+              <Smile className="w-6 h-5 text-gray-600" />
+            </button>
+
+            {/* Emoji Picker Dropdown */}
+            {showPicker && (
+              <div
+                ref={pickerRef}
+                className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+                onClick={() => setShowPicker(false)}
+              >
+                <div
+                  ref={pickerRef}
+                  className="bg-gray-900 p-4 rounded-lg shadow-lg"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Picker
+                    data={data}
+                    onEmojiSelect={(emoji: typeof Emoji) => {
+                      setMessage((prev) => prev + emoji.native);
+                      setShowPicker(false);
+                    }}
+                    theme="dark"
+                    perLine={6}
+                    emojiSize={22}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
           <label className="cursor-pointer">
             <Upload className="w-6 h-6 text-gray-600" />
             <input type="file" className="hidden" onChange={handleFileUpload} />
