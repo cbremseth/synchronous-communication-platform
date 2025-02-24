@@ -40,9 +40,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [fileSizeLimit, setFileSizeLimit] = useState<number | "">("");
-  // const [customEmojis, setCustomEmojis] = useState<
-  //   { id: string; native: string }[]
-  // >([]);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
 
   // Fetch File Upload Limit
   const getChannelFileUploadLimit = useCallback(async () => {
@@ -174,22 +172,55 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     }
   }, [files, isAtBottom]);
 
-  const handleSelectAsEmoji = async (fileId: string) => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/set-custom-emojis/${fileId}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+  const handleSelectImage = async (fileId: string) => {
+    const isCurrentlySelected = selectedImages.includes(fileId);
+    let updatedImages;
 
-      if (!response.ok) throw new Error("Failed to select emoji");
+    if (isCurrentlySelected) {
+      // Remove from selected images
+      updatedImages = selectedImages.filter((id) => id !== fileId);
 
-      console.log(`Emoji with ID: ${fileId} added to backend`);
-    } catch (error) {
-      console.error("Error selecting emoji:", error);
+      // Send DELETE request to backend
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/users/${current_userID}/remove-image`,
+          {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileId }),
+          },
+        );
+
+        if (!response.ok) throw new Error("Failed to remove image");
+
+        console.log("Removed selected image successfully");
+      } catch (error) {
+        console.error("Error removing selected image:", error);
+      }
+    } else {
+      // Add to selected images
+      updatedImages = [...selectedImages, fileId];
+
+      // Send PUT request to backend
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/users/${current_userID}/select-image`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileId }),
+          },
+        );
+
+        if (!response.ok) throw new Error("Failed to select image");
+
+        console.log("Added selected image successfully");
+      } catch (error) {
+        console.error("Error selecting image:", error);
+      }
     }
+
+    setSelectedImages(updatedImages); // Update the state
   };
 
   return (
@@ -293,15 +324,15 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       {/* Show "Select as Emoji" only for image files */}
                       {file.fileType.startsWith("image/") && (
                         <button
-                          className="icon-button"
-                          onClick={() =>
-                            handleSelectAsEmoji(
-                              `${API_BASE_URL}/api/custom-emojis/${file.fileId}`,
-                            )
-                          }
+                          className={`icon-button ${
+                            selectedImages.includes(`${file.fileId}`)
+                              ? "text-blue-500"
+                              : "text-gray-500"
+                          } hover:text-gray-700`}
+                          onClick={() => handleSelectImage(`${file.fileId}`)}
                           title="Select as Emoji"
                         >
-                          <Smile className="h-5 w-9 text-gray-500 hover:text-gray-700" />
+                          <Smile className="h-5 w-9" />
                         </button>
                       )}
                     </div>

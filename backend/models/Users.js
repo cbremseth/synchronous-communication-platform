@@ -38,6 +38,9 @@ const userSchema = new mongoose.Schema({
     enum: ["online", "offline", "busy"],
     default: "online",
   },
+  selectedImages: [
+    { type: mongoose.Schema.Types.ObjectId, ref: "file-uploads.files" },
+  ],
 });
 
 // Hash password before saving

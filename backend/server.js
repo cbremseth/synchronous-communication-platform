@@ -13,12 +13,14 @@ import seedUsers from "./seed.js"; // Import the seed function
 import multer from "multer";
 import { GridFsStorage } from "multer-gridfs-storage";
 import { GridFSBucket, ObjectId } from "mongodb";
+import fileRoutes from "./routes/fileRoutes.js";
 
 const app = express();
-const MAXLIMIT_FILE_UPLOAD = 100; // 100KB system limit
+const MAX_LIMIT_FILE_UPLOAD = 100; // 100KB system limit
 
 app.use(cors());
 app.use(express.json());
+app.use("/api", fileRoutes);
 
 mongoose
   .connect(process.env.MONGODB_URI, {
@@ -852,7 +854,7 @@ app.put("/api/:channelId/update-file-limit", async (req, res) => {
 
     // Validate the new file limit
     console.log(`Request change file limit to: ${fileUploadLimit} KB`);
-    if (fileUploadLimit <= 0 || fileUploadLimit > MAXLIMIT_FILE_UPLOAD) {
+    if (fileUploadLimit <= 0 || fileUploadLimit > MAX_LIMIT_FILE_UPLOAD) {
       return res
         .status(402)
         .json({ message: "<System>: Invalid file size limit 100KB" });
@@ -892,58 +894,77 @@ app.get("/api/:channelId/get-file-limit", async (req, res) => {
   }
 });
 
-// Handle custom emoji
-app.post("/api/set-custom-emojis/:fileId", async (req, res) => {
+// Handle custom emoji selection from ChatInfo
+app.put("/api/users/:userId/select-images", async (req, res) => {
+  const { userId } = req.params;
+  const { fileId } = req.body;
+
   try {
-    const { fileId } = req.params;
-
-    if (!fileId) {
-      return res.status(400).json({ error: "File ID and name are required" });
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
+    if (!user.selectedImages.includes(fileId)) {
+      user.selectedImages.push(fileId);
+    }
+    await user.save();
 
-    const db = mongoose.connection.db;
-    const filesCollection = db.collection("file-uploads.files");
-    const emojiCollection = db.collection("custom-emojis");
-
-    // Check if the file exists in GridFS
-    const file = await filesCollection.findOne({
-      _id: new mongoose.Types.ObjectId(fileId),
+    res.json({
+      message: "Image added to selected images",
+      selectedImages: user.selectedImages,
     });
-
-    if (!file) {
-      return res.status(404).json({ error: "File not found" });
-    }
-
-    // Construct emoji data
-    const emojiData = {
-      fileId,
-    };
-
-    // Save to `custom-emojis` collection
-    await emojiCollection.insertOne(emojiData);
-
-    res.json({ message: "Custom emoji saved successfully", emoji: emojiData });
   } catch (error) {
-    console.error("Error setting custom emoji:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("Error updating selected images:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-// Handle fetching custom emoji
-app.get("/api/custom-emojis", async (req, res) => {
+// Remove a selected image from the user's profile from ChatInfo
+app.delete("/api/users/:userId/remove-image", async (req, res) => {
+  const { userId } = req.params;
+  const { fileId } = req.body; // Get the file ID to remove
+
   try {
-    const db = mongoose.connection.db;
-    const emojiCollection = db.collection("custom-emojis");
-
-    const emojis = await emojiCollection.find({}).toArray();
-
-    res.json(
-      emojis.map((emoji) => ({
-        id: emoji.fileId,
-      })),
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $pull: { selectedImages: fileId } }, // Remove the fileId from array
+      { new: true },
     );
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      message: "Image removed from selected images",
+      selectedImages: user.selectedImages,
+    });
   } catch (error) {
-    console.error("Error fetching custom emojis:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("Error removing selected image:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Handle fetching custom emoji for one user
+app.get("/api/:userId/selected-images", async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .populate("selectedImages", "_id") // Populate file IDs from GridFS
+      .lean(); // Convert to plain object for easier handling
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Convert file IDs into accessible URLs
+    const selectedEmojis = user.selectedImages.map((file) => ({
+      id: file._id.toString(),
+      url: `${process.env.API_BASE_URL}/api/custom-emojis/${file._id}`,
+    }));
+
+    res.json({ selectedEmojis });
+  } catch (error) {
+    console.error("Error fetching selected images:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });

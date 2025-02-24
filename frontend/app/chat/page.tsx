@@ -19,6 +19,7 @@ import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
 import Emoji from "@emoji-mart/react";
 import { init, SearchIndex } from "emoji-mart";
+import CustomEmojiPicker from "@/components/ui/custom-emoji";
 
 init({ data });
 
@@ -89,6 +90,7 @@ export default function Chat({
     channelId,
   );
   const [files, setFiles] = useState<FileInfo[]>([]);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const socket = useSocketContext();
@@ -204,6 +206,36 @@ export default function Chat({
     } catch (error) {
       console.error("Error uploading file:", error);
     }
+  };
+
+  useEffect(() => {
+    if (!user?.userID) return;
+    const fetchSelectedImages = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/users/${user?.userID}/selected-images`,
+        );
+        const data = await response.json();
+
+        if (response.ok) {
+          setSelectedImages(data.selectedImages); // Load existing selected images
+        } else {
+          console.error("Failed to fetch selected images");
+        }
+      } catch (error) {
+        console.error("Error fetching selected images:", error);
+      }
+    };
+
+    if (user?.userID) {
+      fetchSelectedImages();
+    }
+  }, [user?.userID]);
+
+  // Handle selected emojis per user
+  const handleEmojiSelected = (emoji: typeof Emoji) => {
+    setMessage((prev) => prev + emoji.native);
+    setShowPicker(false);
   };
 
   useEffect(() => {
@@ -411,6 +443,7 @@ export default function Chat({
             reactions={reactions || {}}
             onReact={handleReaction}
             getReactionDetails={getReactionDetails}
+            API_BASE_URL={API_BASE_URL}
           />
         </div>
       </div>
@@ -564,13 +597,15 @@ export default function Chat({
                 >
                   <Picker
                     data={data}
-                    onEmojiSelect={(emoji: typeof Emoji) => {
-                      setMessage((prev) => prev + emoji.native);
-                      setShowPicker(false);
-                    }}
+                    onEmojiSelect={handleEmojiSelected}
                     theme="dark"
                     perLine={6}
                     emojiSize={22}
+                  />
+                  <hr className="my-2 border-gray-300" />
+                  <CustomEmojiPicker
+                    customEmojis={selectedImages}
+                    onSelect={handleEmojiSelected}
                   />
                 </div>
               </div>
