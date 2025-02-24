@@ -15,6 +15,7 @@ import { GridFsStorage } from "multer-gridfs-storage";
 import { GridFSBucket, ObjectId } from "mongodb";
 
 const app = express();
+const MAXLIMIT_FILE_UPLOAD = 100; // 100KB system limit
 
 app.use(cors());
 app.use(express.json());
@@ -617,6 +618,27 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
       .status(400)
       .json({ error: "Missing required fields: channelId or senderId" });
   }
+  // Check if within channel's file upload limit
+  const channel = await Channel.findById(channelId);
+  if (!channel) {
+    return res.status(401).json({ error: "Channel not found" });
+  }
+
+  console.log("Channel info: ", channel);
+  // Get the file upload limit (default 5MB if not set)
+  const fileUploadLimit_config = channel.fileUpLoadLimit || 5 * 1024; // Default 5KB in bytes
+  console.log(
+    `current limit of channel ${channelId}: `,
+    fileUploadLimit_config,
+  );
+
+  // Check if file size exceeds the channel's limit
+  if (req.file.size > fileUploadLimit_config) {
+    console.log("Requested file larger than limit");
+    return res.status(402).json({
+      error: `File exceeds the size limit of ${fileUploadLimit_config} KB`,
+    });
+  }
 
   try {
     const fileId = req.file.id;
@@ -797,5 +819,75 @@ app.put("/api/users/:userId/status", async (req, res) => {
     res.status(200).json({ message: "Status updated successfully", user });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Handle check if user is channel owner
+app.post("/api/channels/:channelId/is-owner", async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const userId = req.body.userId;
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+
+    const isOwner = channel.createdBy?.toString() === userId;
+    return res.json({ isOwner });
+  } catch (error) {
+    console.error("Error checking ownership:", error);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.put("/api/:channelId/update-file-limit", async (req, res) => {
+  const { channelId } = req.params;
+  let { fileUploadLimit } = req.body;
+
+  try {
+    // Check if the channel exists
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(401).json({ message: "Channel not found" });
+    }
+
+    // Validate the new file limit
+    console.log(`Request change file limit to: ${fileUploadLimit} KB`);
+    if (fileUploadLimit <= 0 || fileUploadLimit > MAXLIMIT_FILE_UPLOAD) {
+      return res
+        .status(402)
+        .json({ message: "<System>: Invalid file size limit 100KB" });
+    }
+
+    // Update the file upload limit
+    channel.fileUpLoadLimit = fileUploadLimit * 1024; //in bytes
+
+    await channel.save();
+    console.log("saved new limit: ", channel.fileUpLoadLimit);
+    io.to(channelId).emit("file_limit_updated", { fileUploadLimit });
+
+    res.json({ message: "File upload limit updated", fileUploadLimit });
+  } catch (error) {
+    console.error("Error updating file limit:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get("/api/:channelId/get-file-limit", async (req, res) => {
+  const { channelId } = req.params;
+
+  try {
+    // Check if the channel exists
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(404).json({ message: "Channel not found" });
+    }
+
+    // Get the file upload limit
+    const channel_fileUploadLimit = channel.fileUpLoadLimit;
+
+    res.json({ fileUpLoadLimit: channel_fileUploadLimit });
+  } catch (error) {
+    console.error("Error updating file limit:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
