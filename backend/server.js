@@ -863,6 +863,7 @@ app.put("/api/:channelId/update-file-limit", async (req, res) => {
 
     await channel.save();
     console.log("saved new limit: ", channel.fileUpLoadLimit);
+    io.to(channelId).emit("file_limit_updated", { fileUploadLimit });
 
     res.json({ message: "File upload limit updated", fileUploadLimit });
   } catch (error) {

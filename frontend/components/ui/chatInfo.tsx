@@ -108,9 +108,16 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
       },
     );
 
+    // Listen for real-time file upload limit updates
+    socket.on("file_limit_updated", ({ fileUploadLimit }) => {
+      console.log("File limit updated in real-time:", fileUploadLimit);
+      setFileSizeLimit(fileUploadLimit);
+    });
+
     return () => {
       socket.off("channel_participants");
       socket.off("statusUpdated");
+      socket.off("file_limit_updated");
     };
   }, [socket, channelId]);
 
@@ -132,6 +139,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     }
     console.log("Frontend receive file limit: ", fileSizeLimit);
     try {
+      setFileSizeLimit(fileSizeLimit);
       const response = await fetch(
         `${API_BASE_URL}/api/${channelId}/update-file-limit`,
         {
