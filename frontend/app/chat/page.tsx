@@ -182,7 +182,23 @@ export default function Chat({
         body: formData,
       });
 
-      if (!response.ok) throw new Error("File upload failed");
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) {
+          alert("Error: Channel not found.");
+        } else if (response.status === 402) {
+          alert(
+            `Error: Invalid file size limit, current file size: ${
+              file.size / 1024
+            } KB.`,
+          );
+        } else if (response.status === 500) {
+          alert("Error: Server error. Please try again later.");
+        } else {
+          alert(`Unexpected error: ${data.message || "Unknown error"}`);
+        }
+        return;
+      }
 
       console.log("Log: File uploaded successfully");
     } catch (error) {
@@ -579,6 +595,7 @@ export default function Chat({
             channelId={currentChannelId}
             files={files}
             API_BASE_URL={API_BASE_URL}
+            current_userID={user.userID}
           />
         )}
       </div>

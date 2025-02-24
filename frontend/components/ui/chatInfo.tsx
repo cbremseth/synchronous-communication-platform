@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { useSocketContext } from "@/context/SocketContext";
 import mongoose from "mongoose";
 import { EyeIcon, DownloadIcon, ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface Participant {
   id: string;
@@ -22,18 +24,65 @@ interface ChatInfoProps {
   files: FileInfo[];
   API_BASE_URL: string;
   channelId: string;
+  current_userID: string;
 }
 
 const ChatInfo: React.FC<ChatInfoProps> = ({
   files,
   API_BASE_URL,
   channelId,
+  current_userID,
 }) => {
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [isOwner, setIsOwner] = useState(false);
   const socket = useSocketContext();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const [fileSizeLimit, setFileSizeLimit] = useState<number | "">("");
+
+  // Fetch File Upload Limit
+  const getChannelFileUploadLimit = useCallback(async () => {
+    if (!channelId) return;
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/${channelId}/get-file-limit`,
+      );
+      if (!res.ok) throw new Error("Cannot get file upload limit");
+
+      const data = await res.json();
+      setFileSizeLimit(data.fileUpLoadLimit / 1024); // Convert bytes to KB
+    } catch (error) {
+      console.error("Error fetching file upload limit:", error);
+    }
+  }, [API_BASE_URL, channelId]);
+
+  // Memoize the function to prevent unnecessary recreation
+  const checkOwnership = useCallback(async () => {
+    if (!channelId || !current_userID) return;
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/channels/${channelId}/is-owner`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: current_userID }),
+        },
+      );
+      if (!response.ok) throw new Error("Failed to check ownership");
+      const data = await response.json();
+      setIsOwner(data.isOwner);
+    } catch (error) {
+      console.error("Error checking channel ownership:", error);
+    }
+  }, [API_BASE_URL, channelId, current_userID]);
+
+  useEffect(() => {
+    checkOwnership();
+    getChannelFileUploadLimit();
+  }, [checkOwnership, getChannelFileUploadLimit]);
 
   useEffect(() => {
     if (!socket) return;
@@ -75,6 +124,36 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     }
   };
 
+  // Handle input of file update limit
+  const handleFileSizeChange = async () => {
+    if (!fileSizeLimit || fileSizeLimit <= 0 || fileSizeLimit > 100) {
+      alert("File limit must be between 1KB and 100KB.");
+      return;
+    }
+    console.log("Frontend receive file limit: ", fileSizeLimit);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/${channelId}/update-file-limit`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileUploadLimit: fileSizeLimit,
+          }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error("Failed to update new file upload limit");
+      }
+      // Update UI if successful
+      setFileSizeLimit(fileSizeLimit);
+      alert("File upload limit updated successfully");
+    } catch (error) {
+      console.error("Error updating file upload limit:", error);
+      alert("Error updating file upload limit");
+    }
+  };
+
   useEffect(() => {
     if (containerRef.current && isAtBottom) {
       containerRef.current.scrollTo({
@@ -82,7 +161,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         behavior: "smooth",
       });
     }
-  }, [files]);
+  }, [files, isAtBottom]);
 
   return (
     <div className="w-full h-full bg-gray-200 p-4 flex flex-col justify-between">
@@ -109,6 +188,29 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
         </Card>
         <Card className="p-3 h-1/2 mt-8 overflow-auto">
           <h3 className="font-semibold">Files</h3>
+          {/* Show file upload limit input, enabled for owners and disabled for others */}
+          <div className="mb-2 relative">
+            <div>
+              <label className="block text-sm font-medium">
+                File Upload Limit (KB):
+              </label>
+              <span className="text-sm text-gray-500">
+                {fileSizeLimit ? `${fileSizeLimit} KB` : "Loading..."}
+              </span>
+            </div>
+            <Input
+              type="number"
+              value={fileSizeLimit}
+              onChange={(e) => setFileSizeLimit(Number(e.target.value))}
+              onKeyDown={(e) => e.key === "Enter" && handleFileSizeChange()} // Listen for Enter key
+              disabled={!isOwner}
+              className={`w-full border rounded-md p-2 ${
+                !isOwner ? "cursor-not-allowed bg-gray-100" : ""
+              }`}
+              placeholder="Enter new limit"
+            />
+            {isOwner && <Button onClick={handleFileSizeChange}>Save</Button>}
+          </div>
           <hr className="mb-4 border-t border-gray-300" />
           {files.length > 0 ? (
             <div
