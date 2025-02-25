@@ -899,7 +899,9 @@ app.delete("/api/messages/:id", async (req, res) => {
   const { userId } = req.body; // User ID from request body
 
   if (!userId) {
-    return res.status(400).json({ error: "User ID is required to delete a message" });
+    return res
+      .status(400)
+      .json({ error: "User ID is required to delete a message" });
   }
 
   try {
@@ -911,7 +913,9 @@ app.delete("/api/messages/:id", async (req, res) => {
 
     // Check if the user deleting the message is the sender
     if (message.sender.toString() !== userId) {
-      return res.status(403).json({ error: "You can only delete your own messages" });
+      return res
+        .status(403)
+        .json({ error: "You can only delete your own messages" });
     }
 
     const channelId = message.channelId; // Get the channel ID before deletion

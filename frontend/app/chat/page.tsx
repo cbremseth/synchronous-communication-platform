@@ -22,7 +22,6 @@ import { init, SearchIndex } from "emoji-mart";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm"; // Supports GitHub-flavored Markdown (tables, strikethrough, etc.)
 
-
 init({ data });
 
 // Use API URL dynamically based on whether the app is running inside Docker or locally
@@ -166,13 +165,16 @@ export default function Chat({
     if (!user) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/messages/${messageId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${API_BASE_URL}/api/messages/${messageId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: user.userID }), // Ensure user is authenticated
         },
-        body: JSON.stringify({ userId: user.userID }), // Ensure user is authenticated
-      });
+      );
 
       if (!response.ok) {
         console.error("Failed to delete message");
@@ -181,7 +183,7 @@ export default function Chat({
 
       // Remove message from UI
       setMessages((prevMessages) =>
-        prevMessages.filter((msg) => msg._id !== messageId)
+        prevMessages.filter((msg) => msg._id !== messageId),
       );
 
       console.log("Message deleted successfully");
@@ -189,7 +191,6 @@ export default function Chat({
       console.error("Error deleting message:", error);
     }
   };
-
 
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -220,7 +221,8 @@ export default function Chat({
           alert("Error: Channel not found.");
         } else if (response.status === 402) {
           alert(
-            `Error: Invalid file size limit, current file size: ${file.size / 1024
+            `Error: Invalid file size limit, current file size: ${
+              file.size / 1024
             } KB.`,
           );
         } else if (response.status === 500) {
@@ -321,7 +323,7 @@ export default function Chat({
     // handle message deletion
     socket?.on("message_deleted", ({ messageId }) => {
       setMessages((prevMessages) =>
-        prevMessages.filter((msg) => msg._id !== messageId)
+        prevMessages.filter((msg) => msg._id !== messageId),
       );
     });
 
@@ -362,18 +364,18 @@ export default function Chat({
       prevMessages.map((msg) =>
         msg._id === messageId
           ? {
-            ...msg,
-            reactions: {
-              ...msg.reactions,
-              [emoji]: {
-                count: (msg.reactions?.[emoji]?.count || 0) + 1,
-                users: [
-                  ...(msg.reactions?.[emoji]?.users || []),
-                  user.userID,
-                ],
+              ...msg,
+              reactions: {
+                ...msg.reactions,
+                [emoji]: {
+                  count: (msg.reactions?.[emoji]?.count || 0) + 1,
+                  users: [
+                    ...(msg.reactions?.[emoji]?.users || []),
+                    user.userID,
+                  ],
+                },
               },
-            },
-          }
+            }
           : msg,
       ),
     );
@@ -445,9 +447,7 @@ export default function Chat({
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
           <div className="text-sm markdown-content">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {message}
-            </ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
           </div>
 
           <MessageReactions
@@ -472,9 +472,7 @@ export default function Chat({
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-blue-500 text-white flex items-center gap-2">
           <div className="text-sm markdown-content">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {message}
-            </ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
           </div>
 
           <MessageReactions
