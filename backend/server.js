@@ -13,6 +13,7 @@ import seedUsers from "./seed.js"; // Import the seed function
 import multer from "multer";
 import { GridFsStorage } from "multer-gridfs-storage";
 import { GridFSBucket, ObjectId } from "mongodb";
+import Notification from "./models/Notification.js";
 
 const app = express();
 const MAXLIMIT_FILE_UPLOAD = 100; // 100KB system limit
@@ -320,18 +321,26 @@ io.on("connection", async (socket) => {
   console.log("a user connected:", socket.id);
 
   // Handle joining a specific channel
-  socket.on("join_channel", async (channelId) => {
+  socket.on("join_channel", async (channelId, userId) => {
     try {
+      if (!userId) {
+        console.error("No userId provided when joining channel");
+        return;
+      }
+
+      // Store userId in socket
+      socket.userId = userId;
+
       // Leave previous rooms
       socket.rooms.forEach((room) => {
-        if (room !== socket.id) {
+        if (room !== socket.id && room !== userId) {
           socket.leave(room);
         }
       });
 
       // Join new room
       socket.join(channelId);
-      console.log(`User joined channel: ${channelId}`);
+      console.log(`User ${userId} joined channel: ${channelId}`);
 
       // Send channel message history
       const messageHistory = await Message.find({ channelId })
@@ -395,15 +404,94 @@ io.on("connection", async (socket) => {
         return;
       }
 
-      // Save message to database with channelId
+      // Extract mentions from message content
+      const mentionRegex = /@(\w+)/g;
+      const mentionedUsernames =
+        content.match(mentionRegex)?.map((m) => m.substring(1)) || [];
+
+      // Find mentioned users
+      const mentionedUsers = await User.find({
+        username: { $in: mentionedUsernames },
+      });
+
+      const mentionedUserIds = mentionedUsers.map((user) => user._id);
+
+      // Save message to database with channelId and mentions
       const newMessage = new Message({
         content,
         sender,
         senderName,
         channelId,
+        mentions: mentionedUserIds,
         timestamp: new Date(),
       });
       await newMessage.save();
+
+      // Get all sockets in the channel and their user IDs
+      const socketsInChannel = await io.in(channelId).fetchSockets();
+      const usersInChannel = new Set(
+        socketsInChannel.map((socket) => socket.userId).filter(Boolean),
+      );
+
+      console.log("Users currently in channel:", Array.from(usersInChannel));
+      console.log("Sender:", sender);
+
+      // Create notifications for all mentioned users (regardless of channel presence)
+      const notifications = mentionedUsers
+        .filter((user) => user._id.toString() !== sender) // Only filter out the sender
+        .map((user) => ({
+          recipient: user._id,
+          type: "mention",
+          channelId,
+          messageId: newMessage._id,
+          sender,
+        }));
+
+      // Get all users who should receive channel notifications (only offline users)
+      const channelUserIds = channel.users.map((id) => id.toString());
+      const offlineUsers = channelUserIds.filter((userId) => {
+        const isInChannel = usersInChannel.has(userId);
+        const isSender = userId === sender;
+        const isMentioned = mentionedUsers.some(
+          (user) => user._id.toString() === userId,
+        );
+        console.log(
+          `Checking user ${userId}: in channel? ${isInChannel}, is sender? ${isSender}, is mentioned? ${isMentioned}`,
+        );
+        // Don't send regular message notification if user is in channel, is sender, or was mentioned
+        return !isInChannel && !isSender && !isMentioned;
+      });
+
+      console.log("Users to notify for regular messages:", offlineUsers);
+
+      // Add notifications for offline users (regular messages)
+      notifications.push(
+        ...offlineUsers.map((userId) => ({
+          recipient: userId,
+          type: "message",
+          channelId,
+          messageId: newMessage._id,
+          sender,
+        })),
+      );
+
+      if (notifications.length > 0) {
+        console.log(`Creating ${notifications.length} notifications`);
+        const savedNotifications = await Notification.insertMany(notifications);
+
+        // Emit notifications to relevant users
+        savedNotifications.forEach((notification) => {
+          io.to(notification.recipient.toString()).emit("notification", {
+            _id: notification._id,
+            type: notification.type,
+            channelId: notification.channelId,
+            messageId: notification.messageId,
+            sender: senderName,
+            content: content,
+            read: false,
+          });
+        });
+      }
 
       // Format the message for sending
       const messageToSend = {
@@ -412,6 +500,7 @@ io.on("connection", async (socket) => {
         sender,
         senderName,
         channelId,
+        mentions: mentionedUserIds,
         timestamp: newMessage.timestamp,
       };
 
@@ -422,8 +511,17 @@ io.on("connection", async (socket) => {
     }
   });
 
+  // Add socket handler for joining user-specific notification room
+  socket.on("join_user", (userId) => {
+    if (userId) {
+      socket.userId = userId; // Store userId in socket for later use
+      socket.join(userId); // Join user-specific room for notifications
+      console.log(`User ${userId} connected to their notification room`);
+    }
+  });
+
   socket.on("disconnect", () => {
-    console.log("user disconnected:", socket.id);
+    console.log(`User disconnected: ${socket.id}, userId: ${socket.userId}`);
   });
 
   socket.on("updateMessage", async ({ messageId, newContent, userId }) => {
@@ -576,6 +674,49 @@ app.delete("/api/users/:id", async (req, res) => {
     res.status(200).json({ message: "User deleted successfully." });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Add new endpoint to get user notifications
+app.get("/api/notifications", async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const notifications = await Notification.find({ recipient: userId })
+      .populate("sender", "username")
+      .populate("messageId", "content")
+      .sort({ timestamp: -1 })
+      .limit(50);
+
+    res.json(notifications);
+  } catch (error) {
+    console.error("Error fetching notifications:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Add endpoint to mark notifications as read
+app.patch("/api/notifications/read", async (req, res) => {
+  try {
+    const { notificationIds } = req.body;
+    if (!notificationIds || !Array.isArray(notificationIds)) {
+      return res
+        .status(400)
+        .json({ error: "Notification IDs array is required" });
+    }
+
+    await Notification.updateMany(
+      { _id: { $in: notificationIds } },
+      { $set: { read: true } },
+    );
+
+    res.json({ message: "Notifications marked as read" });
+  } catch (error) {
+    console.error("Error marking notifications as read:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -776,20 +917,33 @@ app.post("/api/reactionDetails/:messageId", async (req, res) => {
     /// Convert Map to Object and extract user details
     const reactionDetails = {};
 
+    console.log(
+      "Emoji data with decoded names (static files/dynamic files from DB:",
+    );
     // Fetch user details for all reactions
-    for (const [emoji, { count, users }] of message.reactions.entries()) {
+    for (const [
+      encodedEmoji,
+      { count, users },
+    ] of message.reactions.entries()) {
       const userObjects = await User.find(
         { _id: { $in: users } },
         { username: 1, _id: 0 },
       );
 
-      reactionDetails[emoji] = {
+      // Decode emoji filename (if it's encoded)
+      const decodedEmoji = encodedEmoji
+        .replace(/_slash_/g, "/")
+        .replace(/_dot_/g, ".");
+
+      console.log(`Decoded emoji filename: ${decodedEmoji}`);
+
+      reactionDetails[decodedEmoji] = {
         count,
         users: userObjects.map((user) => user.username), // Convert user IDs to usernames
       };
     }
+    // Return data to frontend
     res.json({ reactionDetails });
-    console.log("Reaction Details:", reactionDetails);
   } catch (error) {
     console.error("Error fetching reaction details:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -945,5 +1099,45 @@ app.get("/api/emojis/:id", async (req, res) => {
   } catch (error) {
     console.error("Error fetching emoji image:", error);
     res.status(500).json({ error: "Failed to fetch image" });
+  }
+});
+
+// message deletion
+
+app.delete("/api/messages/:id", async (req, res) => {
+  const { id } = req.params; // Message ID
+  const { userId } = req.body; // User ID from request body
+
+  if (!userId) {
+    return res
+      .status(400)
+      .json({ error: "User ID is required to delete a message" });
+  }
+
+  try {
+    const message = await Message.findById(id);
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Check if the user deleting the message is the sender
+    if (message.sender.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ error: "You can only delete your own messages" });
+    }
+
+    const channelId = message.channelId; // Get the channel ID before deletion
+
+    await message.deleteOne();
+
+    // Emit a socket event to inform all users in the channel that the message was deleted
+    io.to(channelId.toString()).emit("message_deleted", { messageId: id });
+
+    res.status(200).json({ message: "Message deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting message:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });

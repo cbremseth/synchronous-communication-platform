@@ -226,7 +226,18 @@ export default function MessageReactions({
               Object.entries(reactionDetails).map(([emoji, data]) => (
                 <div key={emoji} className="py-1">
                   <div className="flex justify-between items-center">
-                    <span>{emoji}</span>
+                    <span>
+                      {emoji.startsWith("http") ||
+                      emoji.startsWith("/images/") ? (
+                        <img
+                          src={emoji}
+                          alt="custom emoji"
+                          className="w-6 h-6"
+                        />
+                      ) : (
+                        emoji
+                      )}
+                    </span>
                     <span className="text-xs text-gray-600">
                       {data.count} reacted
                     </span>

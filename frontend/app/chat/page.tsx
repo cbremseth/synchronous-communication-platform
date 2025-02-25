@@ -12,13 +12,30 @@ import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
+import { Download, FileJson, FileType } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import MessageReactions from "@/components/ui/message-reactions";
 import { useSocketContext } from "../../context/SocketContext";
-import { Upload, Smile } from "lucide-react";
+import { Upload, Smile, Trash } from "lucide-react";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
 import Emoji from "@emoji-mart/react";
 import { init, SearchIndex } from "emoji-mart";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm"; // Supports GitHub-flavored Markdown (tables, strikethrough, etc.)
 
 init({ data });
 
@@ -36,6 +53,7 @@ interface Message {
   timestamp?: string;
   isEditing?: boolean;
   channelId: string;
+  mentions?: string[];
   reactions: {
     [emoji: string]: {
       count: number; // Number of times this emoji has been reacted to
@@ -88,6 +106,7 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
+  const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -159,6 +178,67 @@ export default function Chat({
     }
   };
 
+  // Add function to scroll to message
+  const scrollToMessage = (messageId: string) => {
+    const messageElement = messageRefs.current[messageId];
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  // Add effect to handle message highlighting from URL
+  useEffect(() => {
+    // Check for message ID in URL query params
+    const urlParams = new URLSearchParams(window.location.search);
+    const highlightMessageId = urlParams.get("highlight");
+
+    if (highlightMessageId && messages.length > 0) {
+      // Small delay to ensure the message elements are rendered
+      setTimeout(() => {
+        scrollToMessage(highlightMessageId);
+      }, 100);
+
+      // Clean up the URL without triggering a navigation
+      window.history.replaceState({}, "", `/chat/${currentChannelId}`);
+    }
+  }, [messages, currentChannelId]); // Depend on messages and channelId
+
+  // Add scroll to bottom effect
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/messages/${messageId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: user.userID }), // Ensure user is authenticated
+        },
+      );
+
+      if (!response.ok) {
+        console.error("Failed to delete message");
+        return;
+      }
+
+      // Remove message from UI
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => msg._id !== messageId),
+      );
+
+      console.log("Message deleted successfully");
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
+
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -223,6 +303,11 @@ export default function Chat({
   const onClick = async () => {
     if (!user || !currentChannelId || message.trim() === "") return;
 
+    // Extract mentions from message
+    const mentionRegex = /@(\w+)/g;
+    const mentions =
+      message.match(mentionRegex)?.map((m) => m.substring(1)) || [];
+
     // Convert shortcodes before sending
     const finalMessage = await convertShortcodesToEmoji(message);
 
@@ -231,6 +316,7 @@ export default function Chat({
       sender: user.userID,
       senderName: user.username,
       channelId: currentChannelId,
+      mentions,
     });
     setMessage("");
   };
@@ -255,7 +341,7 @@ export default function Chat({
     setMessages([]);
 
     // Join the channel
-    socket?.emit("join_channel", currentChannelId);
+    socket.emit("join_channel", currentChannelId, user.userID);
 
     // Add message history listener
     socket?.on("message_history", (history: Message[]) => {
@@ -286,11 +372,19 @@ export default function Chat({
       socket?.emit("get_message_history");
     }
 
+    // handle message deletion
+    socket?.on("message_deleted", ({ messageId }) => {
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => msg._id !== messageId),
+      );
+    });
+
     // Cleanup function
     return () => {
       socket?.off("connect");
       socket?.off("message");
       socket?.off("message_history");
+      socket?.off("message_deleted");
     };
   }, [user, isAuthenticated, isLoading, currentChannelId, router, socket]);
 
@@ -303,6 +397,42 @@ export default function Chat({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Add export functions
+  const exportMessages = (format: "csv" | "json") => {
+    if (messages.length === 0) return;
+
+    let exportData;
+    let fileName;
+    let fileType;
+
+    if (format === "csv") {
+      // Create CSV content
+      const headers = "Sender,Message,Timestamp\n";
+      const csvContent = messages
+        .map((msg) => `"${msg.senderName}","${msg.content}","${msg.timestamp}"`)
+        .join("\n");
+      exportData = headers + csvContent;
+      fileName = `chat-export-${new Date().toISOString()}.csv`;
+      fileType = "text/csv";
+    } else {
+      // Create JSON content
+      exportData = JSON.stringify(messages, null, 2);
+      fileName = `chat-export-${new Date().toISOString()}.json`;
+      fileType = "application/json";
+    }
+
+    // Create and trigger download
+    const blob = new Blob([exportData], { type: fileType });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
 
   if (isLoading) {
     return (
@@ -329,7 +459,10 @@ export default function Chat({
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-          <p className="text-sm">{message}</p>
+          <div className="text-sm markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
+          </div>
+
           <MessageReactions
             messageId={messageId}
             reactions={reactions}
@@ -351,16 +484,22 @@ export default function Chat({
     <div className="flex items-end justify-end space-x-2">
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
-        <div className="p-2 rounded-lg bg-blue-500 text-white">
-          <p className="text-sm">{message}</p>
-          <div className="text-black">
+        <div className="p-2 rounded-lg bg-blue-500 text-white flex items-center gap-2">
+          <div className="text-sm markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
+          </div>
+          <span className="text-black">
             <MessageReactions
               messageId={messageId}
-              reactions={reactions || {}}
+              reactions={reactions}
               API_BASE_URL={API_BASE_URL}
               channelId={currentChannelId}
+              userId={user.userID}
             />
-          </div>
+          </span>
+          <button onClick={() => handleDeleteMessage(messageId)}>
+            <Trash className="w-4 h-4 text-white hover:text-red-500 cursor-pointer" />
+          </button>
         </div>
       </div>
       <Avatar className="bg-gray-100 dark:bg-gray-800">
@@ -386,6 +525,7 @@ export default function Chat({
         const shortcode = match[1]; // Extract emoji name from match
         const emojis = await SearchIndex.search(shortcode); // Search for the emoji
 
+        // TODO: currently hard-coded skin-tone value to 1 (range from 1-6)
         return emojis && emojis.length > 0
           ? emojis[0].skins[0].native
           : match[0]; // Replace if found, else keep original
@@ -423,37 +563,76 @@ export default function Chat({
         </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
-          <h1 className="text-lg font-semibold">{roomName}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold">{roomName}</h1>
+          </div>
           <div className="flex items-center gap-4">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-8 w-8">
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel>Export Chat</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => exportMessages("csv")}
+                        className="flex items-center"
+                      >
+                        <FileType className="mr-2 h-4 w-4" />
+                        <span>Export as CSV</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => exportMessages("json")}
+                        className="flex items-center"
+                      >
+                        <FileJson className="mr-2 h-4 w-4" />
+                        <span>Export as JSON</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Export chat history</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <span className="text-sm text-gray-600">
-              Welcome, {user.username}!
+              Welcome, {user?.username || "Guest"}!
             </span>
             <NavBar />
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) =>
-            msg.sender === user.userID ? (
-              <SentMessage
+          {messages.map((msg) => {
+            const isSentByUser = msg.sender === user?.userID;
+            const MessageComponent = isSentByUser
+              ? SentMessage
+              : ReceivedMessage;
+
+            return (
+              <div
                 key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-                messageId={msg._id}
-                reactions={msg.reactions}
-              />
-            ) : (
-              <ReceivedMessage
-                key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-                messageId={msg._id}
-                reactions={msg.reactions}
-              />
-            ),
-          )}
+                ref={(el) => {
+                  if (el) messageRefs.current[msg._id] = el;
+                }}
+                className="p-2"
+              >
+                <MessageComponent
+                  message={msg.content}
+                  sender={msg.sender}
+                  senderName={msg.senderName}
+                  messageId={msg._id}
+                  reactions={msg.reactions || {}}
+                />
+              </div>
+            );
+          })}
           <div ref={messagesEndRef} />
         </main>
 
