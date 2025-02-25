@@ -20,10 +20,42 @@ const messageSchema = new mongoose.Schema({
     required: true,
     index: true,
   },
+  mentions: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
   timestamp: {
     type: Date,
     default: Date.now,
     index: true,
+  },
+  fileId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "file-uploads.files", // initialized bucket in server.js
+    default: null,
+  },
+  fileName: {
+    type: String,
+    default: null,
+  },
+  fileType: {
+    type: String,
+    default: null,
+  },
+  fileSize: {
+    type: Number,
+    default: null,
+  },
+  // Reactions - Map of emoji -> array of user IDs
+  reactions: {
+    type: Map,
+    of: {
+      count: { type: Number, default: 0 },
+      users: [{ type: mongoose.Schema.Types.ObjectId, default: [] }],
+    },
+    default: {},
   },
 });
 

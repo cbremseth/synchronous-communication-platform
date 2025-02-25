@@ -10,6 +10,10 @@ const channelSchema = new mongoose.Schema(
       ref: "User",
       required: false,
     },
+    fileUpLoadLimit: {
+      type: Number,
+      default: 5 * 1024, // Default: 5KB, displays in bytes
+    },
   },
   { timestamps: true },
 );

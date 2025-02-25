@@ -179,3 +179,42 @@ export async function deleteAccountAction({
     };
   }
 }
+
+export async function updateUserStatusAction({
+  session,
+  newStatus,
+}: {
+  session: { user: { id: string } };
+  newStatus: "online" | "offline" | "busy";
+}) {
+  const userId = session?.user?.id;
+  if (!userId) {
+    throw new Error("User not authenticated");
+  }
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/users/${userId}/status`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status: newStatus }),
+      },
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to update status");
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Status update failed:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}

@@ -1,11 +1,12 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Manager } from "socket.io-client";
 import Sidebar from "@/components/ui/sidebar";
 import ChatInfo from "@/components/ui/chatInfo";
+import { FileInfo } from "@/components/ui/chatInfo";
 import SearchBar from "@/components/ui/search-bar";
 import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
@@ -26,9 +27,23 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import MessageReactions from "@/components/ui/message-reactions";
+import { useSocketContext } from "../../context/SocketContext";
+import { Upload, Smile, Trash } from "lucide-react";
+import Picker from "@emoji-mart/react";
+import data from "@emoji-mart/data";
+import Emoji from "@emoji-mart/react";
+import { init, SearchIndex } from "emoji-mart";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm"; // Supports GitHub-flavored Markdown (tables, strikethrough, etc.)
 
-const manager = new Manager("http://localhost:5001");
-const socket = manager.socket("/");
+init({ data });
+
+// Use API URL dynamically based on whether the app is running inside Docker or locally
+const API_BASE_URL =
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:5001"
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 interface Message {
   _id: string;
@@ -38,12 +53,26 @@ interface Message {
   timestamp?: string;
   isEditing?: boolean;
   channelId: string;
+  mentions?: string[];
+  reactions: {
+    [emoji: string]: {
+      count: number; // Number of times this emoji has been reacted to
+      users: string[]; // List of user IDs who reacted with this emoji
+    };
+  };
 }
 
 interface MessageProps {
   message: string;
   sender: string;
   senderName: string;
+  messageId: string;
+  reactions: {
+    [emoji: string]: {
+      count: number;
+      users: string[];
+    };
+  };
 }
 
 // Interfaces for search results: Users
@@ -77,9 +106,14 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
+  const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
+  const [files, setFiles] = useState<FileInfo[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const socket = useSocketContext();
 
   // Add function to fetch general channel
-  const fetchGeneralChannel = async () => {
+  const fetchGeneralChannel = useCallback(async () => {
     try {
       if (!user) return;
       const generalChannel = await getOrCreateGeneralChannel(user.userID);
@@ -88,7 +122,7 @@ export default function Chat({
     } catch (error) {
       console.error("Error fetching general channel:", error);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!channelId && roomName === "General Chat") {
@@ -96,7 +130,27 @@ export default function Chat({
     } else {
       setCurrentChannelId(channelId);
     }
-  }, [channelId, roomName, user]);
+  }, [channelId, roomName, user, fetchGeneralChannel]);
+
+  // Handle fetching files for current channel
+  useEffect(() => {
+    if (currentChannelId) {
+      fetch(`${API_BASE_URL}/api/files/${currentChannelId}`)
+        .then((response) => response.json())
+        .then((data) => {
+          setFiles(data);
+          console.log("All files loaded for channel", currentChannelId);
+        })
+        .catch((err) => {
+          console.log(
+            "Failed to load files for channel",
+            err,
+            currentChannelId,
+          );
+          setFiles([]);
+        });
+    }
+  }, [currentChannelId]);
 
   // Function to handle search functionality in searchbar
   const handleSearch = async (query: string) => {
@@ -107,15 +161,10 @@ export default function Chat({
       setMessageResults([]);
       return;
     }
-    // Use API URL dynamically based on whether the app is running inside Docker or locally
-    const apiBaseUrl =
-      typeof window !== "undefined" && window.location.hostname === "localhost"
-        ? "http://localhost:5001"
-        : process.env.NEXT_PUBLIC_API_URL;
 
     try {
       const response = await fetch(
-        `${apiBaseUrl}/api/searchbar?query=${query}`,
+        `${API_BASE_URL}/api/searchbar?query=${query}`,
       );
       if (!response.ok) throw new Error("Failed to fetch search results");
 
@@ -129,17 +178,149 @@ export default function Chat({
     }
   };
 
-  function onClick(message: string) {
+  // Add function to scroll to message
+  const scrollToMessage = (messageId: string) => {
+    const messageElement = messageRefs.current[messageId];
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  // Add effect to handle message highlighting from URL
+  useEffect(() => {
+    // Check for message ID in URL query params
+    const urlParams = new URLSearchParams(window.location.search);
+    const highlightMessageId = urlParams.get("highlight");
+
+    if (highlightMessageId && messages.length > 0) {
+      // Small delay to ensure the message elements are rendered
+      setTimeout(() => {
+        scrollToMessage(highlightMessageId);
+      }, 100);
+
+      // Clean up the URL without triggering a navigation
+      window.history.replaceState({}, "", `/chat/${currentChannelId}`);
+    }
+  }, [messages, currentChannelId]); // Depend on messages and channelId
+
+  // Add scroll to bottom effect
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/messages/${messageId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: user.userID }), // Ensure user is authenticated
+        },
+      );
+
+      if (!response.ok) {
+        console.error("Failed to delete message");
+        return;
+      }
+
+      // Remove message from UI
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => msg._id !== messageId),
+      );
+
+      console.log("Message deleted successfully");
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
+
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    console.log("Preparing to upload file in channel: ", currentChannelId);
+    const file = event.target.files?.[0];
+    if (!file || !user || !currentChannelId) {
+      console.error("Upload failed: Missing user or channel ID");
+      return;
+    }
+    console.log("Information about file:", file);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("senderId", user.userID);
+    formData.append("channelId", currentChannelId);
+    formData.append("senderName", user.username);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        if (response.status === 401) {
+          alert("Error: Channel not found.");
+        } else if (response.status === 402) {
+          alert(
+            `Error: Invalid file size limit, current file size: ${
+              file.size / 1024
+            } KB.`,
+          );
+        } else if (response.status === 500) {
+          alert("Error: Server error. Please try again later.");
+        } else {
+          alert(`Unexpected error: ${data.message || "Unknown error"}`);
+        }
+        return;
+      }
+
+      console.log("Log: File uploaded successfully");
+    } catch (error) {
+      console.error("Error uploading file:", error);
+    }
+  };
+
+  useEffect(() => {
+    const handleFileUpload = (file: FileInfo) => {
+      console.log("Received a file upload event:", file);
+      setFiles((prevFiles) => [...prevFiles, file]);
+    };
+
+    // Listen for the file_uploaded event
+    socket?.on("file_uploaded", handleFileUpload);
+
+    return () => {
+      socket?.off("file_uploaded", handleFileUpload);
+    };
+  }, [currentChannelId, socket]);
+
+  const onClick = async () => {
     if (!user || !currentChannelId || message.trim() === "") return;
 
-    socket.emit("message", {
-      content: message,
+    // Extract mentions from message
+    const mentionRegex = /@(\w+)/g;
+    const mentions =
+      message.match(mentionRegex)?.map((m) => m.substring(1)) || [];
+
+    // Convert shortcodes before sending
+    const finalMessage = await convertShortcodesToEmoji(message);
+
+    console.log("converted messages with shortcodes: ", finalMessage);
+    socket?.emit("message", {
+      content: finalMessage,
       sender: user.userID,
       senderName: user.username,
       channelId: currentChannelId,
+      mentions,
     });
     setMessage("");
-  }
+  };
 
   useEffect(() => {
     console.log("Auth state:", { user, isLoading, isAuthenticated });
@@ -153,31 +334,31 @@ export default function Chat({
     if (!user || !currentChannelId) return;
 
     // Ensure socket is connected
-    if (!socket.connected) {
-      socket.connect();
+    if (!socket?.connected) {
+      socket?.connect();
     }
 
     // Clear messages when switching channels
     setMessages([]);
 
     // Join the channel
-    socket.emit("join_channel", currentChannelId);
+    socket.emit("join_channel", currentChannelId, user.userID);
 
     // Add message history listener
-    socket.on("message_history", (history: Message[]) => {
+    socket?.on("message_history", (history: Message[]) => {
       console.log("Received message history:", history);
       setMessages(history);
     });
 
     // Message listener for new messages
-    socket.on("message", (message: Message) => {
+    socket?.on("message", (message: Message) => {
       if (message.channelId === currentChannelId) {
         setMessages((prevMessages) => [...prevMessages, message]);
       }
     });
 
     // Add new socket listener for message updates
-    socket.on("messageUpdated", (updatedMessage: Message) => {
+    socket?.on("messageUpdated", (updatedMessage: Message) => {
       setMessages((prevMessages) =>
         prevMessages.map((msg) =>
           msg._id === updatedMessage._id
@@ -188,17 +369,100 @@ export default function Chat({
     });
 
     // Immediately request message history if already connected
-    if (socket.connected) {
-      socket.emit("get_message_history");
+    if (socket?.connected) {
+      socket?.emit("get_message_history");
     }
+
+    // handle message deletion
+    socket?.on("message_deleted", ({ messageId }) => {
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => msg._id !== messageId),
+      );
+    });
 
     // Cleanup function
     return () => {
-      socket.off("connect");
-      socket.off("message");
-      socket.off("message_history");
+      socket?.off("connect");
+      socket?.off("message");
+      socket?.off("message_history");
+      socket?.off("message_deleted");
     };
-  }, [user, isAuthenticated, isLoading, currentChannelId]);
+  }, [user, isAuthenticated, isLoading, currentChannelId, router, socket]);
+
+  useEffect(() => {
+    socket?.on("reaction_updated", ({ messageId, reactions }) => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg._id === messageId ? { ...msg, reactions } : msg,
+        ),
+      );
+    });
+
+    return () => {
+      socket?.off("reaction_updated");
+    };
+  }, []);
+
+  // Function to handle emoji reactions
+  const handleReaction = (messageId: string, emoji: string) => {
+    if (!user) return;
+
+    socket?.emit("add_reaction", {
+      messageId,
+      emoji,
+      userId: user.userID,
+    });
+
+    setMessages((prevMessages) =>
+      prevMessages.map((msg) =>
+        msg._id === messageId
+          ? {
+              ...msg,
+              reactions: {
+                ...msg.reactions,
+                [emoji]: {
+                  count: (msg.reactions?.[emoji]?.count || 0) + 1,
+                  users: [
+                    ...(msg.reactions?.[emoji]?.users || []),
+                    user.userID,
+                  ],
+                },
+              },
+            }
+          : msg,
+      ),
+    );
+  };
+
+  // Fetch reaction details for a message
+  const getReactionDetails = async (messageId: string) => {
+    try {
+      if (!messageId) {
+        console.error("Invalid messageId:", messageId);
+        return {};
+      }
+
+      console.log("Fetching reactions for messageId:", messageId);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/reactionDetails/${messageId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch reaction details");
+      }
+
+      const data = await response.json();
+      return data.reactionDetails;
+    } catch (error) {
+      console.error("Error fetching reaction details:", error);
+      return {};
+    }
+  };
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -258,7 +522,12 @@ export default function Chat({
     return null;
   }
 
-  const ReceivedMessage = ({ message, senderName }: MessageProps) => (
+  const ReceivedMessage = ({
+    message,
+    senderName,
+    messageId,
+    reactions,
+  }: MessageProps) => (
     <div className="flex items-end space-x-2">
       <Avatar className="bg-gray-100 dark:bg-gray-800">
         <AvatarFallback>{senderName?.charAt(0)?.toUpperCase()}</AvatarFallback>
@@ -266,18 +535,44 @@ export default function Chat({
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-          <p className="text-sm">{message}</p>
+          <div className="text-sm markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
+          </div>
+
+          <MessageReactions
+            messageId={messageId}
+            reactions={reactions || {}}
+            onReact={handleReaction}
+            getReactionDetails={getReactionDetails}
+          />
         </div>
       </div>
     </div>
   );
 
-  const SentMessage = ({ message, senderName }: MessageProps) => (
+  const SentMessage = ({
+    message,
+    senderName,
+    messageId,
+    reactions,
+  }: MessageProps) => (
     <div className="flex items-end justify-end space-x-2">
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
-        <div className="p-2 rounded-lg bg-blue-500 text-white">
-          <p className="text-sm">{message}</p>
+        <div className="p-2 rounded-lg bg-blue-500 text-white flex items-center gap-2">
+          <div className="text-sm markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
+          </div>
+
+          <MessageReactions
+            messageId={messageId}
+            reactions={reactions || {}}
+            onReact={handleReaction}
+            getReactionDetails={getReactionDetails}
+          />
+          <button onClick={() => handleDeleteMessage(messageId)}>
+            <Trash className="w-4 h-4 text-white hover:text-red-500 cursor-pointer" />
+          </button>
         </div>
       </div>
       <Avatar className="bg-gray-100 dark:bg-gray-800">
@@ -285,6 +580,39 @@ export default function Chat({
       </Avatar>
     </div>
   );
+
+  // Function to replace shortcodes i.e ":smile:" with actual emojis
+  const convertShortcodesToEmoji = async (text: string) => {
+    // Regular expression to find :emoji_shortcodes:
+    const emojiRegex = /:([a-zA-Z0-9_+-]+):/g;
+
+    // Extract all matches
+    const matches = [...text.matchAll(emojiRegex)];
+
+    // If no shortcodes found, return original text
+    if (matches.length === 0) return text;
+
+    // Process all matches asynchronously
+    const replacedTextArray = await Promise.all(
+      matches.map(async (match) => {
+        const shortcode = match[1]; // Extract emoji name from match
+        const emojis = await SearchIndex.search(shortcode); // Search for the emoji
+
+        return emojis && emojis.length > 0
+          ? emojis[0].skins[0].native
+          : match[0]; // Replace if found, else keep original
+      }),
+    );
+
+    // Replace the shortcodes in text with the actual emoji
+    let replacedText = text;
+    matches.forEach((match, index) => {
+      replacedText = replacedText.replace(match[0], replacedTextArray[index]);
+    });
+
+    console.log("Converted Text:", replacedText);
+    return replacedText;
+  };
 
   return (
     <div className="flex w-full h-screen">
@@ -353,48 +681,101 @@ export default function Chat({
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) =>
-            msg.sender === user.userID ? (
-              <SentMessage
+          {messages.map((msg) => {
+            const isSentByUser = msg.sender === user?.userID;
+            const MessageComponent = isSentByUser
+              ? SentMessage
+              : ReceivedMessage;
+
+            return (
+              <div
                 key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-              />
-            ) : (
-              <ReceivedMessage
-                key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-              />
-            ),
-          )}
+                ref={(el) => {
+                  if (el) messageRefs.current[msg._id] = el;
+                }}
+                className="p-2"
+              >
+                <MessageComponent
+                  message={msg.content}
+                  sender={msg.sender}
+                  senderName={msg.senderName}
+                  messageId={msg._id}
+                  reactions={msg.reactions || {}}
+                />
+              </div>
+            );
+          })}
           <div ref={messagesEndRef} />
         </main>
 
-        <footer className="flex-none flex items-center space-x-2 border-t p-4 bg-white">
-          <Input
-            className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-4 border-cyan-950"
-            placeholder="Type a message"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onClick(message)}
-          />
+        <footer className="flex-none flex items-center space-x-2 border-t p-4 bg-white relative">
+          <div className="relative flex-1">
+            <Input
+              className="flex-1 bg-gray-100 dark:bg-gray-800 rounded-lg shadow-lg p-4 border-cyan-950"
+              placeholder="Type a message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onClick()}
+            />
+            {/* Emoji Picker Button */}
+            <button
+              onClick={() => setShowPicker((prev) => !prev)}
+              className="absolute right-2 top-2"
+            >
+              <Smile className="w-6 h-5 text-gray-600" />
+            </button>
+
+            {/* Emoji Picker Dropdown */}
+            {showPicker && (
+              <div
+                ref={pickerRef}
+                className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+                onClick={() => setShowPicker(false)}
+              >
+                <div
+                  ref={pickerRef}
+                  className="bg-gray-900 p-4 rounded-lg shadow-lg"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Picker
+                    data={data}
+                    onEmojiSelect={(emoji: typeof Emoji) => {
+                      setMessage((prev) => prev + emoji.native);
+                      setShowPicker(false);
+                    }}
+                    theme="dark"
+                    perLine={6}
+                    emojiSize={22}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <label className="cursor-pointer">
+            <Upload className="w-6 h-6 text-gray-600" />
+            <input type="file" className="hidden" onChange={handleFileUpload} />
+          </label>
           <Button
             className="w-20"
             variant="default"
             size="lg"
-            onClick={() => onClick(message)}
+            onClick={() => onClick()}
           >
             Send
           </Button>
         </footer>
       </div>
 
-      {/* Chat Info Panel */}
       <div className="w-64">
-        <ChatInfo />
+        {/* Chat Info Panel */}
+        {currentChannelId && (
+          <ChatInfo
+            channelId={currentChannelId}
+            files={files}
+            API_BASE_URL={API_BASE_URL}
+            current_userID={user.userID}
+          />
+        )}
       </div>
     </div>
   );
