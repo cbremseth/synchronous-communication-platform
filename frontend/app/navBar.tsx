@@ -59,6 +59,15 @@ const NavBar = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await handleStatusChange("offline");
+      signOut({ callbackUrl: "/signin" });
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
   return (
     <nav className="fixed top-0 right-0 p-4">
       <DropdownMenu>
@@ -110,7 +119,7 @@ const NavBar = () => {
           </Link>
           <DropdownMenuItem
             className="text-red-500 hover:text-red-700 cursor-pointer"
-            onClick={() => signOut({ callbackUrl: "/signin" })}
+            onClick={handleSignOut}
           >
             Sign Out
           </DropdownMenuItem>
