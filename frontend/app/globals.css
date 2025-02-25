@@ -40,6 +40,7 @@ body {
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
   }
+
   .dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
@@ -72,6 +73,7 @@ body {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -99,4 +101,42 @@ body {
   background-color: #888;
   border-radius: 10px;
   border: 2px solid #f0f0f0;
+}
+
+.markdown-content {
+  white-space: pre-wrap;
+  /* Preserve line breaks */
+  word-wrap: break-word;
+  /* Prevent text overflow */
+}
+
+.markdown-content h1 {
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.markdown-content h2 {
+  font-size: 1.3rem;
+  font-weight: bold;
+}
+
+.markdown-content h3 {
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.markdown-content p {
+  margin-bottom: 8px;
+}
+
+.markdown-content a {
+  color: #4a90e2;
+  text-decoration: underline;
+}
+
+.markdown-content code {
+  background-color: #f3f3f3;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
 }
