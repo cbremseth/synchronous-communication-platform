@@ -15,9 +15,14 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { signInAction, type SignInFormData } from "@/app/actions/auth";
+import {
+  signInAction,
+  type SignInFormData,
+  updateUserStatusAction,
+} from "@/app/actions/auth";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { useSocketContext } from "@/context/SocketContext";
 
 // Validation schema for login
 const signInFormSchema = z.object({
@@ -30,8 +35,36 @@ const signInFormSchema = z.object({
 export function LoginForm() {
   const router = useRouter();
   const { status, data: session, update: updateSession } = useSession();
+  const socket = useSocketContext();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleStatusChange = async (status: string) => {
+    try {
+      const userId =
+        session?.user?.userID || session?.user?._id || session?.user?.id;
+      console.log("User id used for status update:", userId);
+      if (!userId) {
+        throw new Error("User not authenticated");
+      }
+
+      const result = await updateUserStatusAction({
+        session: { user: { id: userId } },
+        newStatus: status,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to update status");
+      }
+
+      // Emit status update to the server
+      socket?.emit("update_status", { userId, status });
+
+      console.log("Status updated successfully");
+    } catch (error) {
+      console.error("Error updating status:", error);
+    }
+  };
 
   // Add effect to handle redirect after session is established
   useEffect(() => {
@@ -40,6 +73,7 @@ export function LoginForm() {
 
     if (status === "authenticated" && session?.user) {
       console.log("Redirecting to chat page...");
+      handleStatusChange("online");
       router.replace("/chat");
     }
   }, [status, session, router]);
