@@ -14,11 +14,13 @@ import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
 import MessageReactions from "@/components/ui/message-reactions";
 import { useSocketContext } from "../../context/SocketContext";
-import { Upload, Smile } from "lucide-react";
+import { Upload, Smile, Trash } from "lucide-react";
 import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
 import Emoji from "@emoji-mart/react";
 import { init, SearchIndex } from "emoji-mart";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm"; // Supports GitHub-flavored Markdown (tables, strikethrough, etc.)
 
 init({ data });
 
@@ -159,6 +161,37 @@ export default function Chat({
     }
   };
 
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!user) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/messages/${messageId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ userId: user.userID }), // Ensure user is authenticated
+        },
+      );
+
+      if (!response.ok) {
+        console.error("Failed to delete message");
+        return;
+      }
+
+      // Remove message from UI
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => msg._id !== messageId),
+      );
+
+      console.log("Message deleted successfully");
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
+
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -287,11 +320,19 @@ export default function Chat({
       socket?.emit("get_message_history");
     }
 
+    // handle message deletion
+    socket?.on("message_deleted", ({ messageId }) => {
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => msg._id !== messageId),
+      );
+    });
+
     // Cleanup function
     return () => {
       socket?.off("connect");
       socket?.off("message");
       socket?.off("message_history");
+      socket?.off("message_deleted");
     };
   }, [user, isAuthenticated, isLoading, currentChannelId, router, socket]);
 
@@ -405,7 +446,10 @@ export default function Chat({
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-          <p className="text-sm">{message}</p>
+          <div className="text-sm markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
+          </div>
+
           <MessageReactions
             messageId={messageId}
             reactions={reactions || {}}
@@ -426,14 +470,20 @@ export default function Chat({
     <div className="flex items-end justify-end space-x-2">
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
-        <div className="p-2 rounded-lg bg-blue-500 text-white">
-          <p className="text-sm">{message}</p>
+        <div className="p-2 rounded-lg bg-blue-500 text-white flex items-center gap-2">
+          <div className="text-sm markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
+          </div>
+
           <MessageReactions
             messageId={messageId}
             reactions={reactions || {}}
             onReact={handleReaction}
             getReactionDetails={getReactionDetails}
           />
+          <button onClick={() => handleDeleteMessage(messageId)}>
+            <Trash className="w-4 h-4 text-white hover:text-red-500 cursor-pointer" />
+          </button>
         </div>
       </div>
       <Avatar className="bg-gray-100 dark:bg-gray-800">

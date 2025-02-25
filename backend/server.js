@@ -891,3 +891,43 @@ app.get("/api/:channelId/get-file-limit", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+// message deletion
+
+app.delete("/api/messages/:id", async (req, res) => {
+  const { id } = req.params; // Message ID
+  const { userId } = req.body; // User ID from request body
+
+  if (!userId) {
+    return res
+      .status(400)
+      .json({ error: "User ID is required to delete a message" });
+  }
+
+  try {
+    const message = await Message.findById(id);
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Check if the user deleting the message is the sender
+    if (message.sender.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ error: "You can only delete your own messages" });
+    }
+
+    const channelId = message.channelId; // Get the channel ID before deletion
+
+    await message.deleteOne();
+
+    // Emit a socket event to inform all users in the channel that the message was deleted
+    io.to(channelId.toString()).emit("message_deleted", { messageId: id });
+
+    res.status(200).json({ message: "Message deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting message:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
