@@ -19,6 +19,9 @@ import Picker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
 import Emoji from "@emoji-mart/react";
 import { init, SearchIndex } from "emoji-mart";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm"; // Supports GitHub-flavored Markdown (tables, strikethrough, etc.)
+
 
 init({ data });
 
@@ -441,7 +444,12 @@ export default function Chat({
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
-          <p className="text-sm">{message}</p>
+          <div className="text-sm markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message}
+            </ReactMarkdown>
+          </div>
+
           <MessageReactions
             messageId={messageId}
             reactions={reactions || {}}
@@ -463,7 +471,12 @@ export default function Chat({
       <div className="flex flex-col items-end gap-1">
         <span className="text-xs text-gray-500">{senderName}</span>
         <div className="p-2 rounded-lg bg-blue-500 text-white flex items-center gap-2">
-          <p className="text-sm">{message}</p>
+          <div className="text-sm markdown-content">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message}
+            </ReactMarkdown>
+          </div>
+
           <MessageReactions
             messageId={messageId}
             reactions={reactions || {}}
