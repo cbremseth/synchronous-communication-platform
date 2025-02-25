@@ -10,9 +10,13 @@ config({ path: "../.env" });
 import { createServer } from "http";
 import { Server } from "socket.io";
 import seedUsers from "./seed.js"; // Import the seed function
+import multer from "multer";
+import { GridFsStorage } from "multer-gridfs-storage";
+import { GridFSBucket, ObjectId } from "mongodb";
 import Notification from "./models/Notification.js";
 
 const app = express();
+const MAXLIMIT_FILE_UPLOAD = 100; // 100KB system limit
 
 app.use(cors());
 app.use(express.json());
@@ -351,11 +355,41 @@ io.on("connection", async (socket) => {
         senderName: msg.sender ? msg.sender.username : "Deleted User",
         channelId: msg.channelId.toString(),
         timestamp: msg.timestamp,
+        reactions: msg.reactions,
       }));
 
       socket.emit("message_history", formattedMessages);
+
+      // Send channel participants
+      const channel = await Channel.findById(channelId).populate(
+        "users",
+        "username status",
+      );
+      const participants = channel.users.map((user) => ({
+        id: user._id.toString(),
+        username: user.username,
+        status: user.status,
+      }));
+      io.to(channelId).emit("channel_participants", participants);
     } catch (error) {
       console.error("Error in join_channel:", error);
+    }
+  });
+
+  socket.on("update_status", async ({ userId, status }) => {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        console.error("User not found:", userId);
+        return;
+      }
+
+      user.status = status;
+      await user.save();
+
+      io.emit("statusUpdated", { userId, status });
+    } catch (error) {
+      console.error("Error updating status:", error);
     }
   });
 
@@ -521,6 +555,74 @@ io.on("connection", async (socket) => {
       console.error("Error updating message:", error);
     }
   });
+
+  // Handle file uploads
+  socket.on(
+    "fileUpload",
+    async ({ fileName, fileSize, fileType, senderName, channelId }) => {
+      try {
+        console.log(`File upload: ${fileName} by ${senderName}`);
+
+        // Emit file upload to all users in channel
+        io.to(channelId.toString()).emit("file_uploaded", {
+          fileName,
+          fileType,
+          fileSize,
+          senderName,
+        });
+      } catch (error) {
+        console.log("Error handling file upload event: ", error);
+      }
+    },
+  );
+  socket.on("add_reaction", async ({ messageId, emoji, userId }) => {
+    try {
+      const message = await Message.findById(messageId);
+      if (!message) {
+        console.error("Message not found:", messageId);
+        return;
+      }
+
+      // Initialize pair of emoji key, value
+      if (!message.reactions[emoji]) {
+        message.reactions[emoji] = { count: 0, users: [] };
+      }
+
+      // Initialize reactions if it doesn't exist
+      if (!message.reactions.has(emoji)) {
+        message.reactions.set(emoji, { count: 0, users: [] });
+      }
+
+      const reaction = message.reactions.get(emoji);
+      const userIndex = reaction.users.indexOf(userId);
+
+      if (userIndex === -1) {
+        // User has NOT reacted yet → Add reaction
+        reaction.count += 1;
+        reaction.users.push(userId);
+      } else {
+        // User has already reacted → Remove reaction
+        reaction.count -= 1;
+        reaction.users.splice(userIndex, 1);
+
+        // If no users left, remove the emoji from reactions
+        if (reaction.count === 0) {
+          message.reactions.delete(emoji);
+        }
+      }
+
+      await message.save();
+      console.log("Updated Reactions:", Object.fromEntries(message.reactions));
+
+      // Emit only to users in the same channel
+      io.to(message.channelId.toString()).emit("reaction_updated", {
+        messageId,
+        reactions: Object.fromEntries(message.reactions), // Convert Map to Object for frontend
+      });
+    } catch (error) {
+      console.error("Error updating reaction:", error);
+    }
+  });
 });
 
 httpServer.listen(PORT, () => {
@@ -617,6 +719,356 @@ app.patch("/api/notifications/read", async (req, res) => {
     res.json({ message: "Notifications marked as read" });
   } catch (error) {
     console.error("Error marking notifications as read:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Set up GridFS Storage Engine for File Uploads**
+const storage = new GridFsStorage({
+  url: process.env.MONGODB_URI,
+  options: { useNewUrlParser: true, useUnifiedTopology: true },
+  file: (req, file) => {
+    return new Promise((resolve, reject) => {
+      if (!file) {
+        reject(new Error("File is missing"));
+      }
+
+      const fileInfo = {
+        filename: `${Date.now()}-${file.originalname}`,
+        bucketName: "file-uploads",
+      };
+
+      resolve(fileInfo);
+    });
+  },
+});
+
+const upload = multer({ storage });
+
+// Upload File API
+app.post("/api/upload", upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    return res
+      .status(400)
+      .json({ error: "File upload failed. No file received." });
+  }
+
+  const { channelId, senderId, senderName } = req.body;
+  if (!channelId || !senderId) {
+    return res
+      .status(400)
+      .json({ error: "Missing required fields: channelId or senderId" });
+  }
+  // Check if within channel's file upload limit
+  const channel = await Channel.findById(channelId);
+  if (!channel) {
+    return res.status(401).json({ error: "Channel not found" });
+  }
+
+  console.log("Channel info: ", channel);
+  // Get the file upload limit (default 5MB if not set)
+  const fileUploadLimit_config = channel.fileUpLoadLimit || 5 * 1024; // Default 5KB in bytes
+  console.log(
+    `current limit of channel ${channelId}: `,
+    fileUploadLimit_config,
+  );
+
+  // Check if file size exceeds the channel's limit
+  if (req.file.size > fileUploadLimit_config) {
+    console.log("Requested file larger than limit");
+    return res.status(402).json({
+      error: `File exceeds the size limit of ${fileUploadLimit_config} KB`,
+    });
+  }
+
+  try {
+    const fileId = req.file.id;
+    const fileName = req.file.filename;
+    const fileType = req.file.contentType;
+    const fileSize = req.file.size;
+    const message_content = `Uploaded a file: ${fileName}`;
+
+    const newMessage = new Message({
+      content: message_content,
+      sender: senderId,
+      senderName: senderName || "Unknown",
+      channelId: channelId,
+      fileId: fileId,
+      fileName: fileName,
+      fileType: fileType,
+      fileSize: fileSize,
+      timestamp: new Date(),
+    });
+
+    try {
+      await newMessage.save();
+      console.log("Message saved successfully");
+    } catch (error) {
+      console.error("Error saving message:", error);
+    }
+
+    io.to(channelId).emit("file_uploaded", {
+      fileId,
+      fileName,
+      fileType,
+      fileSize,
+      senderName,
+      channelId,
+      timestamp: new Date(),
+    });
+
+    io.to(channelId).emit("message", {
+      _id: newMessage._id.toString(),
+      content: message_content,
+      sender: senderId,
+      senderName,
+      channelId,
+      timestamp: newMessage.timestamp,
+    });
+
+    res.status(200).json({
+      message: "File uploaded successfully",
+      fileId,
+      fileName,
+      fileType,
+      fileSize,
+    });
+  } catch (error) {
+    console.error("File upload error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Retrieve all files in a given channelId
+app.get("/api/files/:channelId", async (req, res) => {
+  try {
+    const channelId = req.params.channelId;
+    const files = await Message.find({
+      channelId: channelId,
+      fileId: { $ne: null },
+    }).select("fileName fileSize fileType fileId fileId senderName");
+    res.json(files);
+  } catch (error) {
+    console.error("Error retrieving files:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+app.get("/api/preview/:fileId", async (req, res) => {
+  try {
+    const fileId = new ObjectId(req.params.fileId);
+
+    const bucket = new GridFSBucket(mongoose.connection.db, {
+      bucketName: "file-uploads",
+    });
+
+    // Find the file in the database to get the contentType
+    const file = await bucket.find({ _id: fileId }).toArray();
+    if (!file || file.length === 0) {
+      return res.status(404).send("File not found");
+    }
+
+    // Set the proper content type
+    res.type(file[0].contentType);
+
+    // Create a download stream and pipe it to the response
+    const downloadStream = bucket.openDownloadStream(fileId);
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("Error sending file:", error);
+    res.status(500).json({ message: "Server error", error });
+  }
+});
+
+// Download files by fileID
+app.get("/api/download/:fileId", async (req, res) => {
+  const fileId = new mongoose.Types.ObjectId(req.params.fileId); // Convert string ID to ObjectId
+  const bucket = new GridFSBucket(mongoose.connection.db, {
+    bucketName: "file-uploads",
+  });
+
+  const file = await bucket.find({ _id: fileId }).toArray();
+  if (file.length === 0) {
+    res.status(404).send("No file found.");
+    return;
+  }
+
+  res.set("Content-Type", file[0].contentType);
+  res.set("Content-Disposition", `attachment; filename="${file[0].filename}"`);
+
+  const downloadStream = bucket.openDownloadStream(fileId);
+  downloadStream.on("error", function (error) {
+    res.status(404).send("Error downloading file: ", error);
+  });
+
+  downloadStream.pipe(res);
+});
+// Endpoint to fetch usernames and emoji from message ID
+app.post("/api/reactionDetails/:messageId", async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ error: "Invalid message ID" });
+    }
+
+    const message = await Message.findById(messageId);
+
+    if (!message) {
+      message.reactions = {};
+    }
+
+    /// Convert Map to Object and extract user details
+    const reactionDetails = {};
+
+    // Fetch user details for all reactions
+    for (const [emoji, { count, users }] of message.reactions.entries()) {
+      const userObjects = await User.find(
+        { _id: { $in: users } },
+        { username: 1, _id: 0 },
+      );
+
+      reactionDetails[emoji] = {
+        count,
+        users: userObjects.map((user) => user.username), // Convert user IDs to usernames
+      };
+    }
+    res.json({ reactionDetails });
+    console.log("Reaction Details:", reactionDetails);
+  } catch (error) {
+    console.error("Error fetching reaction details:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update user status endpoint
+app.put("/api/users/:userId/status", async (req, res) => {
+  const userId = req.params.userId;
+  const { status } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ message: "Status is required" });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    user.status = status;
+    await user.save();
+    res.status(200).json({ message: "Status updated successfully", user });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// Handle check if user is channel owner
+app.post("/api/channels/:channelId/is-owner", async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const userId = req.body.userId;
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) return res.status(404).json({ error: "Channel not found" });
+
+    const isOwner = channel.createdBy?.toString() === userId;
+    return res.json({ isOwner });
+  } catch (error) {
+    console.error("Error checking ownership:", error);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.put("/api/:channelId/update-file-limit", async (req, res) => {
+  const { channelId } = req.params;
+  let { fileUploadLimit } = req.body;
+
+  try {
+    // Check if the channel exists
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(401).json({ message: "Channel not found" });
+    }
+
+    // Validate the new file limit
+    console.log(`Request change file limit to: ${fileUploadLimit} KB`);
+    if (fileUploadLimit <= 0 || fileUploadLimit > MAXLIMIT_FILE_UPLOAD) {
+      return res
+        .status(402)
+        .json({ message: "<System>: Invalid file size limit 100KB" });
+    }
+
+    // Update the file upload limit
+    channel.fileUpLoadLimit = fileUploadLimit * 1024; //in bytes
+
+    await channel.save();
+    console.log("saved new limit: ", channel.fileUpLoadLimit);
+    io.to(channelId).emit("file_limit_updated", { fileUploadLimit });
+
+    res.json({ message: "File upload limit updated", fileUploadLimit });
+  } catch (error) {
+    console.error("Error updating file limit:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.get("/api/:channelId/get-file-limit", async (req, res) => {
+  const { channelId } = req.params;
+
+  try {
+    // Check if the channel exists
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(404).json({ message: "Channel not found" });
+    }
+
+    // Get the file upload limit
+    const channel_fileUploadLimit = channel.fileUpLoadLimit;
+
+    res.json({ fileUpLoadLimit: channel_fileUploadLimit });
+  } catch (error) {
+    console.error("Error updating file limit:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// message deletion
+
+app.delete("/api/messages/:id", async (req, res) => {
+  const { id } = req.params; // Message ID
+  const { userId } = req.body; // User ID from request body
+
+  if (!userId) {
+    return res
+      .status(400)
+      .json({ error: "User ID is required to delete a message" });
+  }
+
+  try {
+    const message = await Message.findById(id);
+
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Check if the user deleting the message is the sender
+    if (message.sender.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ error: "You can only delete your own messages" });
+    }
+
+    const channelId = message.channelId; // Get the channel ID before deletion
+
+    await message.deleteOne();
+
+    // Emit a socket event to inform all users in the channel that the message was deleted
+    io.to(channelId.toString()).emit("message_deleted", { messageId: id });
+
+    res.status(200).json({ message: "Message deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting message:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

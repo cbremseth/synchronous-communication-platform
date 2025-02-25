@@ -2,6 +2,7 @@
 
 FROM node:18-alpine AS base
 RUN apk add --no-cache libc6-compat
+RUN npm install -g corepack@latest
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Install dependencies only when needed
