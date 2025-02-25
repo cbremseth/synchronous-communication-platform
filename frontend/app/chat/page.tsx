@@ -226,7 +226,6 @@ export default function Chat({
     // Convert shortcodes before sending
     const finalMessage = await convertShortcodesToEmoji(message);
 
-    console.log("converted messages with shortcodes: ", finalMessage);
     socket?.emit("message", {
       content: finalMessage,
       sender: user.userID,
@@ -295,81 +294,6 @@ export default function Chat({
     };
   }, [user, isAuthenticated, isLoading, currentChannelId, router, socket]);
 
-  useEffect(() => {
-    socket?.on("reaction_updated", ({ messageId, reactions }) => {
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg._id === messageId ? { ...msg, reactions } : msg,
-        ),
-      );
-    });
-
-    return () => {
-      socket?.off("reaction_updated");
-    };
-  }, [socket]);
-
-  // Function to handle emoji reactions
-  const handleReaction = (messageId: string, emoji: string) => {
-    if (!user) return;
-
-    socket?.emit("add_reaction", {
-      messageId,
-      emoji,
-      userId: user.userID,
-    });
-
-    setMessages((prevMessages) =>
-      prevMessages.map((msg) =>
-        msg._id === messageId
-          ? {
-              ...msg,
-              reactions: {
-                ...msg.reactions,
-                [emoji]: {
-                  count: (msg.reactions?.[emoji]?.count || 0) + 1,
-                  users: [
-                    ...(msg.reactions?.[emoji]?.users || []),
-                    user.userID,
-                  ],
-                },
-              },
-            }
-          : msg,
-      ),
-    );
-  };
-
-  // Fetch reaction details for a message
-  const getReactionDetails = async (messageId: string) => {
-    try {
-      if (!messageId) {
-        console.error("Invalid messageId:", messageId);
-        return {};
-      }
-
-      console.log("Fetching reactions for messageId:", messageId);
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/reactionDetails/${messageId}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch reaction details");
-      }
-
-      const data = await response.json();
-      return data.reactionDetails;
-    } catch (error) {
-      console.error("Error fetching reaction details:", error);
-      return {};
-    }
-  };
-
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -408,9 +332,10 @@ export default function Chat({
           <p className="text-sm">{message}</p>
           <MessageReactions
             messageId={messageId}
-            reactions={reactions || {}}
-            onReact={handleReaction}
-            getReactionDetails={getReactionDetails}
+            reactions={reactions}
+            API_BASE_URL={API_BASE_URL}
+            channelId={currentChannelId}
+            userId={user.userID}
           />
         </div>
       </div>
@@ -432,9 +357,8 @@ export default function Chat({
             <MessageReactions
               messageId={messageId}
               reactions={reactions || {}}
-              onReact={handleReaction}
-              getReactionDetails={getReactionDetails}
               API_BASE_URL={API_BASE_URL}
+              channelId={currentChannelId}
             />
           </div>
         </div>
@@ -517,7 +441,7 @@ export default function Chat({
                 sender={msg.sender}
                 senderName={msg.senderName}
                 messageId={msg._id}
-                reactions={msg.reactions || {}}
+                reactions={msg.reactions}
               />
             ) : (
               <ReceivedMessage
@@ -526,7 +450,7 @@ export default function Chat({
                 sender={msg.sender}
                 senderName={msg.senderName}
                 messageId={msg._id}
-                reactions={msg.reactions || {}}
+                reactions={msg.reactions}
               />
             ),
           )}

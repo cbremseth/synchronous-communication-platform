@@ -477,7 +477,8 @@ io.on("connection", async (socket) => {
       }
     },
   );
-  socket.on("add_reaction", async ({ messageId, emoji, userId }) => {
+
+  socket.on("add_reaction", async ({ messageId, emoji, userId, channelId }) => {
     try {
       const message = await Message.findById(messageId);
       if (!message) {
@@ -485,13 +486,8 @@ io.on("connection", async (socket) => {
         return;
       }
 
-      // Initialize pair of emoji key, value
-      if (!message.reactions[emoji]) {
-        message.reactions[emoji] = { count: 0, users: [] };
-      }
-
-      // Initialize reactions if it doesn't exist
       if (!message.reactions.has(emoji)) {
+        // If the emoji key doesn't exist, initialize it
         message.reactions.set(emoji, { count: 0, users: [] });
       }
 
@@ -513,13 +509,14 @@ io.on("connection", async (socket) => {
         }
       }
 
+      // Save updates
       await message.save();
       console.log("Updated Reactions:", Object.fromEntries(message.reactions));
 
-      // Emit only to users in the same channel
-      io.to(message.channelId.toString()).emit("reaction_updated", {
+      // Emit full updated reactions back to all users in the channel
+      io.to(channelId).emit("add_reaction", {
         messageId,
-        reactions: Object.fromEntries(message.reactions), // Convert Map to Object for frontend
+        reactions: Object.fromEntries(message.reactions),
       });
     } catch (error) {
       console.error("Error updating reaction:", error);
