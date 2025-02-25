@@ -12,6 +12,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { getOrCreateGeneralChannel } from "@/app/actions/channelActions";
 import NavBar from "../navBar";
 import { useRouter } from "next/navigation";
+import { Download, FileJson, FileType } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import MessageReactions from "@/components/ui/message-reactions";
 import { useSocketContext } from "../../context/SocketContext";
 import { Upload, Smile, Trash } from "lucide-react";
@@ -459,6 +474,42 @@ export default function Chat({
     scrollToBottom();
   }, [messages]);
 
+  // Add export functions
+  const exportMessages = (format: "csv" | "json") => {
+    if (messages.length === 0) return;
+
+    let exportData;
+    let fileName;
+    let fileType;
+
+    if (format === "csv") {
+      // Create CSV content
+      const headers = "Sender,Message,Timestamp\n";
+      const csvContent = messages
+        .map((msg) => `"${msg.senderName}","${msg.content}","${msg.timestamp}"`)
+        .join("\n");
+      exportData = headers + csvContent;
+      fileName = `chat-export-${new Date().toISOString()}.csv`;
+      fileType = "text/csv";
+    } else {
+      // Create JSON content
+      exportData = JSON.stringify(messages, null, 2);
+      fileName = `chat-export-${new Date().toISOString()}.json`;
+      fileType = "application/json";
+    }
+
+    // Create and trigger download
+    const blob = new Blob([exportData], { type: fileType });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -584,8 +635,44 @@ export default function Chat({
         </div>
 
         <header className="flex-none flex items-center justify-between px-4 py-2 border-b">
-          <h1 className="text-lg font-semibold">{roomName}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold">{roomName}</h1>
+          </div>
           <div className="flex items-center gap-4">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-8 w-8">
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel>Export Chat</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => exportMessages("csv")}
+                        className="flex items-center"
+                      >
+                        <FileType className="mr-2 h-4 w-4" />
+                        <span>Export as CSV</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => exportMessages("json")}
+                        className="flex items-center"
+                      >
+                        <FileJson className="mr-2 h-4 w-4" />
+                        <span>Export as JSON</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Export chat history</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <span className="text-sm text-gray-600">
               Welcome, {user?.username || "Guest"}!
             </span>
