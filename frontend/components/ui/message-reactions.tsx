@@ -4,7 +4,7 @@ import data from "@emoji-mart/data";
 import { Button } from "@/components/ui/button";
 import { Smile } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import Emoji from "@emoji-mart/react";
+// import Emoji from "@emoji-mart/react";
 import { useSocketContext } from "@/context/SocketContext";
 
 interface MessageReactionsProps {
@@ -64,26 +64,62 @@ export default function MessageReactions({
     }
   };
 
-  // SEEDING CUSTOM EMOJI - static image for cusom emoji
-  const custom = [
+  // Static sample for custom emoji saved in frontend directory
+  const [customEmojis, setCustomEmojis] = useState([
     {
-      id: "github",
-      name: "GitHub",
+      id: "octocat",
+      name: "octocat",
       emojis: [
         {
           id: "octocat",
           name: "Octocat",
-          keywords: ["github"],
           skins: [{ src: "/images/octocat.png" }],
         },
       ],
     },
-  ];
+  ]);
 
-  const handleAddCustomEmoji = (newEmoji: typeof Emoji) => {
-    console.log("Add custom emoji <a> clicked", newEmoji);
-    // const updatedCustomEmojis = [...customEmojis, newEmoji];
-    // setCustomEmojis(updatedCustomEmojis);
+  const handleAddCustomEmoji = (newEmoji: {
+    id: string;
+    name: string;
+    src: string;
+  }) => {
+    console.log("Adding custom emoji:", newEmoji);
+
+    setCustomEmojis((prev) => {
+      const updatedCustomEmojis = [...prev];
+
+      // Find custom emoji category
+      const categoryIndex = updatedCustomEmojis.findIndex(
+        (cat) => cat.id === "custom-emojis",
+      );
+
+      if (categoryIndex !== -1) {
+        // Append new emoji if category exists
+        updatedCustomEmojis[categoryIndex].emojis.push({
+          id: newEmoji.id,
+          name: newEmoji.name,
+          skins: [{ src: newEmoji.src }],
+        });
+      } else {
+        // Create category if missing
+        updatedCustomEmojis.push({
+          id: "octocat",
+          name: "octocat",
+          emojis: [
+            {
+              id: newEmoji.id,
+              name: newEmoji.name,
+              skins: [{ src: newEmoji.src }],
+            },
+          ],
+        });
+      }
+
+      return updatedCustomEmojis;
+    });
+
+    console.log("Updated custom emojis:", customEmojis);
   };
 
   // Close picker when pressing Escape key
@@ -142,25 +178,28 @@ export default function MessageReactions({
       return;
     }
 
-    const emojiKey = String(selectedEmoji);
+    // Encode custom emoji URL to be MongoDB-safe
+    const encodedEmoji = selectedEmoji
+      .replace(/\./g, "_dot_")
+      .replace(/\//g, "_slash_");
 
-    // Update UI for current state
+    // Optimistically update UI
     setLocalReactions((prevReactions) => {
       const updatedReactions = { ...prevReactions };
-      const reaction = updatedReactions[emojiKey]
-        ? { ...updatedReactions[emojiKey] }
-        : { count: 0, users: [] };
-
+      const reaction = updatedReactions[encodedEmoji] || {
+        count: 0,
+        users: [],
+      };
       const hasReacted = reaction.users.includes(user.userID);
 
       if (hasReacted) {
         reaction.count -= 1;
         reaction.users = reaction.users.filter((id) => id !== user.userID);
-        if (reaction.count === 0) delete updatedReactions[emojiKey];
+        if (reaction.count === 0) delete updatedReactions[encodedEmoji];
       } else {
         reaction.count += 1;
         reaction.users.push(user.userID);
-        updatedReactions[emojiKey] = reaction;
+        updatedReactions[encodedEmoji] = reaction;
       }
 
       return updatedReactions;
@@ -169,7 +208,7 @@ export default function MessageReactions({
     // ✅ Emit reaction event to the backend (Ensure emoji is a string)
     socket?.emit("add_reaction", {
       messageId,
-      emoji: emojiKey, // 🔥 Always send emoji as a string
+      emoji: encodedEmoji,
       userId: user.userID,
       channelId,
     });
@@ -181,26 +220,33 @@ export default function MessageReactions({
     <div className="relative flex items-center space-x-2">
       {/* Display selected emojis with counts */}
       <div className="flex space-x-1">
-        {Object.entries(localReactions || {}).map(([emoji, data]) => (
-          <button
-            key={emoji}
-            className={`flex items-center space-x-1 p-1 rounded-md hover:bg-gray-300 ${
-              data.users.includes(user?.userID) ? "bg-blue-200" : "bg-gray-200"
-            }`}
-            onClick={() => {
-              setShowDetails(true);
-              fetchReactionDetails();
-            }}
-          >
-            {emoji.startsWith("http") || emoji.startsWith("/images/") ? (
-              <img src={emoji} alt="custom emoji" className="w-6 h-6" />
-            ) : (
-              <span>{emoji}</span>
-            )}
+        {Object.entries(localReactions || {}).map(([encoded_emoji, data]) => {
+          const emoji = encoded_emoji
+            .replace(/_slash_/g, "/")
+            .replace(/_dot_/g, ".");
+          return (
+            <button
+              key={emoji}
+              className={`flex items-center space-x-1 p-1 rounded-md hover:bg-gray-300 ${
+                data.users.includes(user?.userID)
+                  ? "bg-blue-200"
+                  : "bg-gray-200"
+              }`}
+              onClick={() => {
+                setShowDetails(true);
+                fetchReactionDetails();
+              }}
+            >
+              {emoji.startsWith("http") || emoji.startsWith("/images/") ? (
+                <img src={emoji} alt="custom emoji" className="w-6 h-6" />
+              ) : (
+                <span>{emoji}</span>
+              )}
 
-            <span className="text-sm">{data.count}</span>
-          </button>
-        ))}
+              <span className="text-sm">{data.count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Emoji Picker Button */}
@@ -226,7 +272,7 @@ export default function MessageReactions({
               perLine={6}
               emojiSize={22}
               onAddCustomEmoji={handleAddCustomEmoji}
-              custom={custom}
+              custom={customEmojis}
               autoFocus="true"
             />
           </div>
