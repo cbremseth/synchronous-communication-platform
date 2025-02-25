@@ -889,56 +889,32 @@ app.get("/api/:channelId/get-file-limit", async (req, res) => {
   }
 });
 
-// Handle custom emoji
-app.post("/api/set-custom-emojis/:fileId", async (req, res) => {
-  try {
-    const { fileId } = req.params;
-
-    if (!fileId) {
-      return res.status(400).json({ error: "File ID and name are required" });
-    }
-
-    const db = mongoose.connection.db;
-    const filesCollection = db.collection("file-uploads.files");
-    const emojiCollection = db.collection("custom-emojis");
-
-    // Check if the file exists in GridFS
-    const file = await filesCollection.findOne({
-      _id: new mongoose.Types.ObjectId(fileId),
-    });
-
-    if (!file) {
-      return res.status(404).json({ error: "File not found" });
-    }
-
-    // Construct emoji data
-    const emojiData = {
-      fileId,
-    };
-
-    // Save to `custom-emojis` collection
-    await emojiCollection.insertOne(emojiData);
-
-    res.json({ message: "Custom emoji saved successfully", emoji: emojiData });
-  } catch (error) {
-    console.error("Error setting custom emoji:", error);
-    res.status(500).json({ error: "Internal Server Error" });
-  }
-});
-
 // Handle fetching custom emoji
 app.get("/api/custom-emojis", async (req, res) => {
   try {
     const db = mongoose.connection.db;
-    const emojiCollection = db.collection("custom-emojis");
+    const collection = db.collection("file-uploads.files");
+    const imageFiles = await collection
+      .find({ contentType: /^image\// })
+      .toArray();
 
-    const emojis = await emojiCollection.find({}).toArray();
+    console.log("Potential custom images:", imageFiles);
 
-    res.json(
-      emojis.map((emoji) => ({
-        id: emoji.fileId,
-      })),
-    );
+    console.log("potential custom images: ", imageFiles);
+
+    if (!imageFiles.length) {
+      return res
+        .status(404)
+        .json({ error: "No image found in uploaded files" });
+    }
+
+    const emojis = imageFiles.map((file) => ({
+      id: file._id.toString(), // Convert ObjectId to string
+      name: file.filename,
+      src: `http://localhost:5001/api/custom-emoji/${file._id}`, // URL to serve image
+    }));
+
+    res.json({ emojis });
   } catch (error) {
     console.error("Error fetching custom emojis:", error);
     res.status(500).json({ error: "Internal Server Error" });

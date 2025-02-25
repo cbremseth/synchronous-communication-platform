@@ -37,6 +37,37 @@ export default function MessageReactions({
   const detailsRef = useRef<HTMLDivElement>(null);
   const socket = useSocketContext();
 
+  const [customDynamicEmojis, setCustomDynamicEmojis] = useState<
+    { id: string; name: string; src: string }[]
+  >([]);
+  const customEmojiPicker = [
+    {
+      id: "custom",
+      name: "Uploaded Emojis",
+      emojis: customDynamicEmojis.map((emoji) => ({
+        id: emoji.id,
+        name: emoji.name,
+        keywords: ["uploaded", "custom"],
+        skins: [{ src: emoji.src }], // will call to backend
+      })),
+    },
+  ];
+
+  useEffect(() => {
+    const fetchCustomEmojis = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/custom-emojis`);
+        if (!response.ok) throw new Error("Failed to fetch custom emojis");
+        const data = await response.json();
+        setCustomDynamicEmojis(data.emojis);
+      } catch (error) {
+        console.error("Error loading custom emojis:", error);
+      }
+    };
+
+    fetchCustomEmojis();
+  }, [showPicker]);
+
   // Toggle emoji picker
   const togglePicker = () => setShowPicker((prev) => !prev);
 
@@ -272,7 +303,8 @@ export default function MessageReactions({
               perLine={6}
               emojiSize={22}
               onAddCustomEmoji={handleAddCustomEmoji}
-              custom={customEmojis}
+              // custom={customEmojis}
+              custom={customEmojiPicker}
               autoFocus="true"
             />
           </div>

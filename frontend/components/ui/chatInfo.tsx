@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { useSocketContext } from "@/context/SocketContext";
 import mongoose from "mongoose";
-import { EyeIcon, DownloadIcon, ChevronDown, Smile } from "lucide-react";
+import { EyeIcon, DownloadIcon, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -174,24 +174,6 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     }
   }, [files, isAtBottom]);
 
-  const handleSelectAsEmoji = async (fileId: string) => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/set-custom-emojis/${fileId}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      if (!response.ok) throw new Error("Failed to select emoji");
-
-      console.log(`Emoji with ID: ${fileId} added to backend`);
-    } catch (error) {
-      console.error("Error selecting emoji:", error);
-    }
-  };
-
   return (
     <div className="w-full h-full bg-gray-200 p-4 flex flex-col justify-between">
       <h2 className="text-lg font-semibold mb-4">Room Details</h2>
@@ -290,20 +272,6 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       >
                         <DownloadIcon className="h-5 w-5 text-gray-500 hover:text-gray-700" />
                       </button>
-                      {/* Show "Select as Emoji" only for image files */}
-                      {file.fileType.startsWith("image/") && (
-                        <button
-                          className="icon-button"
-                          onClick={() =>
-                            handleSelectAsEmoji(
-                              `${API_BASE_URL}/api/custom-emojis/${file.fileId}`,
-                            )
-                          }
-                          title="Select as Emoji"
-                        >
-                          <Smile className="h-5 w-9 text-gray-500 hover:text-gray-700" />
-                        </button>
-                      )}
                     </div>
                   </li>
                 ))}
