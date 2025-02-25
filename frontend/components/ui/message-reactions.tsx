@@ -53,23 +53,24 @@ export default function MessageReactions({
     },
   ];
 
-  useEffect(() => {
-    const fetchCustomEmojis = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/custom-emojis`);
-        if (!response.ok) throw new Error("Failed to fetch custom emojis");
-        const data = await response.json();
-        setCustomDynamicEmojis(data.emojis);
-      } catch (error) {
-        console.error("Error loading custom emojis:", error);
-      }
-    };
-
-    fetchCustomEmojis();
-  }, [showPicker]);
+  const fetchCustomEmojis = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/custom-emojis`);
+      if (!response.ok) throw new Error("Failed to fetch custom emojis");
+      const data = await response.json();
+      setCustomDynamicEmojis(data.emojis);
+    } catch (error) {
+      console.error("Error loading custom emojis:", error);
+    }
+  };
 
   // Toggle emoji picker
-  const togglePicker = () => setShowPicker((prev) => !prev);
+  const togglePicker = async () => {
+    if (!showPicker) {
+      await fetchCustomEmojis(); // Load emojis only when opening
+    }
+    setShowPicker((prev) => !prev);
+  };
 
   // Fetch reaction details from the backend
   const fetchReactionDetails = async () => {
