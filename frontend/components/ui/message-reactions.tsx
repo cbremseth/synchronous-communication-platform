@@ -4,7 +4,6 @@ import data from "@emoji-mart/data";
 import { Button } from "@/components/ui/button";
 import { Smile } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-// import Emoji from "@emoji-mart/react";
 import { useSocketContext } from "@/context/SocketContext";
 
 interface MessageReactionsProps {
@@ -43,13 +42,24 @@ export default function MessageReactions({
   const customEmojiPicker = [
     {
       id: "custom",
-      name: "Uploaded Emojis",
+      name: "Uploaded Files",
       emojis: customDynamicEmojis.map((emoji) => ({
         id: emoji.id,
         name: emoji.name,
         keywords: ["uploaded", "custom"],
         skins: [{ src: emoji.src }], // will call to backend
       })),
+    },
+    {
+      id: "static",
+      name: "Static File",
+      emojis: [
+        {
+          id: "octocat",
+          name: "Octocat",
+          skins: [{ src: "/images/octocat.png" }], // Static emoji for testing
+        },
+      ],
     },
   ];
 
@@ -94,64 +104,6 @@ export default function MessageReactions({
     } finally {
       setLoadingDetails(false);
     }
-  };
-
-  // Static sample for custom emoji saved in frontend directory
-  const [customEmojis, setCustomEmojis] = useState([
-    {
-      id: "github",
-      name: "github",
-      emojis: [
-        {
-          id: "octocat",
-          name: "Octocat",
-          skins: [{ src: "/images/octocat.png" }],
-        },
-      ],
-    },
-  ]);
-
-  const handleAddCustomEmoji = (newEmoji: {
-    id: string;
-    name: string;
-    src: string;
-  }) => {
-    console.log("Adding custom emoji:", newEmoji);
-
-    setCustomEmojis((prev) => {
-      const updatedCustomEmojis = [...prev];
-
-      // Find custom emoji category
-      const categoryIndex = updatedCustomEmojis.findIndex(
-        (cat) => cat.id === "custom-emojis",
-      );
-
-      if (categoryIndex !== -1) {
-        // Append new emoji if category exists
-        updatedCustomEmojis[categoryIndex].emojis.push({
-          id: newEmoji.id,
-          name: newEmoji.name,
-          skins: [{ src: newEmoji.src }],
-        });
-      } else {
-        // Create category if missing
-        updatedCustomEmojis.push({
-          id: "octocat",
-          name: "octocat",
-          emojis: [
-            {
-              id: newEmoji.id,
-              name: newEmoji.name,
-              skins: [{ src: newEmoji.src }],
-            },
-          ],
-        });
-      }
-
-      return updatedCustomEmojis;
-    });
-
-    console.log("Updated custom emojis:", customEmojis);
   };
 
   // Close picker when pressing Escape key
@@ -237,7 +189,7 @@ export default function MessageReactions({
       return updatedReactions;
     });
 
-    // ✅ Emit reaction event to the backend (Ensure emoji is a string)
+    // Emit reaction event to the backend (Ensure emoji is a string)
     socket?.emit("add_reaction", {
       messageId,
       emoji: encodedEmoji,
@@ -303,7 +255,7 @@ export default function MessageReactions({
               theme="dark"
               perLine={6}
               emojiSize={22}
-              onAddCustomEmoji={handleAddCustomEmoji}
+              // onAddCustomEmoji={handleAddCustomEmoji}
               // custom={customEmojis}
               custom={customEmojiPicker}
               autoFocus="true"
