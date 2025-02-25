@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import Picker from "@emoji-mart/react";
-import data from "@emoji-mart/data";
 import { Button } from "@/components/ui/button";
 import { Smile } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocketContext } from "@/context/SocketContext";
+import EmojiPickerModal from "@/components/ui/emoji-picker";
 
 interface MessageReactionsProps {
   messageId: string;
@@ -36,49 +35,8 @@ export default function MessageReactions({
   const detailsRef = useRef<HTMLDivElement>(null);
   const socket = useSocketContext();
 
-  const [customDynamicEmojis, setCustomDynamicEmojis] = useState<
-    { id: string; name: string; src: string }[]
-  >([]);
-  const customEmojiPicker = [
-    {
-      id: "custom",
-      name: "Uploaded Files",
-      emojis: customDynamicEmojis.map((emoji) => ({
-        id: emoji.id,
-        name: emoji.name,
-        keywords: ["uploaded", "custom"],
-        skins: [{ src: emoji.src }], // will call to backend
-      })),
-    },
-    {
-      id: "static",
-      name: "Static File",
-      emojis: [
-        {
-          id: "octocat",
-          name: "Octocat",
-          skins: [{ src: "/images/octocat.png" }], // Static emoji for testing
-        },
-      ],
-    },
-  ];
-
-  const fetchCustomEmojis = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/custom-emojis`);
-      if (!response.ok) throw new Error("Failed to fetch custom emojis");
-      const data = await response.json();
-      setCustomDynamicEmojis(data.emojis);
-    } catch (error) {
-      console.error("Error loading custom emojis:", error);
-    }
-  };
-
   // Toggle emoji picker
   const togglePicker = async () => {
-    if (!showPicker) {
-      await fetchCustomEmojis(); // Load emojis only when opening
-    }
     setShowPicker((prev) => !prev);
   };
 
@@ -240,28 +198,11 @@ export default function MessageReactions({
 
       {/* Centered Picker with Reduced Size */}
       {showPicker && (
-        <div
-          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-          onClick={() => setShowPicker(false)} // Close picker when clicking outside
-        >
-          <div
-            ref={pickerRef}
-            className="bg-gray-900 p-4 rounded-lg shadow-lg"
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
-          >
-            <Picker
-              data={data}
-              onEmojiSelect={handleEmojiSelect}
-              theme="dark"
-              perLine={6}
-              emojiSize={22}
-              // onAddCustomEmoji={handleAddCustomEmoji}
-              // custom={customEmojis}
-              custom={customEmojiPicker}
-              autoFocus="true"
-            />
-          </div>
-        </div>
+        <EmojiPickerModal
+          API_BASE_URL={API_BASE_URL}
+          onSelectEmoji={handleEmojiSelect}
+          onClose={() => setShowPicker(false)}
+        />
       )}
 
       {/* Reaction Details Modal */}
