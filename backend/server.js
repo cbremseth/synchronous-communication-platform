@@ -911,12 +911,39 @@ app.get("/api/custom-emojis", async (req, res) => {
     const emojis = imageFiles.map((file) => ({
       id: file._id.toString(), // Convert ObjectId to string
       name: file.filename,
-      src: `http://localhost:5001/api/custom-emoji/${file._id}`, // URL to serve image
+      src: `http://localhost:5001/api/emojis/${file._id}`, // URL to serve image
     }));
 
     res.json({ emojis });
   } catch (error) {
     console.error("Error fetching custom emojis:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Send images from GridFS to Frontend
+app.get("/api/emojis/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+      bucketName: "file-uploads",
+    });
+
+    const objectId = new mongoose.Types.ObjectId(id);
+
+    const filesCollection =
+      mongoose.connection.db.collection("file-uploads.files");
+    const file = await filesCollection.findOne({ _id: objectId });
+
+    if (!file) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    res.set("Content-Type", file.contentType); // Set correct MIME type
+    const downloadStream = bucket.openDownloadStream(objectId);
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("Error fetching emoji image:", error);
+    res.status(500).json({ error: "Failed to fetch image" });
   }
 });

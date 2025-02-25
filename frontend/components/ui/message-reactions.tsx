@@ -99,8 +99,8 @@ export default function MessageReactions({
   // Static sample for custom emoji saved in frontend directory
   const [customEmojis, setCustomEmojis] = useState([
     {
-      id: "octocat",
-      name: "octocat",
+      id: "github",
+      name: "github",
       emojis: [
         {
           id: "octocat",
