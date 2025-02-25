@@ -38,6 +38,7 @@ interface Message {
   timestamp?: string;
   isEditing?: boolean;
   channelId: string;
+  mentions?: string[];
   reactions: {
     [emoji: string]: {
       count: number; // Number of times this emoji has been reacted to
@@ -90,6 +91,7 @@ export default function Chat({
   const [currentChannelId, setCurrentChannelId] = useState<string | undefined>(
     channelId,
   );
+  const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -160,6 +162,36 @@ export default function Chat({
       setMessageResults([]);
     }
   };
+
+  // Add function to scroll to message
+  const scrollToMessage = (messageId: string) => {
+    const messageElement = messageRefs.current[messageId];
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  // Add effect to handle message highlighting from URL
+  useEffect(() => {
+    // Check for message ID in URL query params
+    const urlParams = new URLSearchParams(window.location.search);
+    const highlightMessageId = urlParams.get("highlight");
+
+    if (highlightMessageId && messages.length > 0) {
+      // Small delay to ensure the message elements are rendered
+      setTimeout(() => {
+        scrollToMessage(highlightMessageId);
+      }, 100);
+
+      // Clean up the URL without triggering a navigation
+      window.history.replaceState({}, "", `/chat/${currentChannelId}`);
+    }
+  }, [messages, currentChannelId]); // Depend on messages and channelId
+
+  // Add scroll to bottom effect
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleDeleteMessage = async (messageId: string) => {
     if (!user) return;
@@ -256,6 +288,11 @@ export default function Chat({
   const onClick = async () => {
     if (!user || !currentChannelId || message.trim() === "") return;
 
+    // Extract mentions from message
+    const mentionRegex = /@(\w+)/g;
+    const mentions =
+      message.match(mentionRegex)?.map((m) => m.substring(1)) || [];
+
     // Convert shortcodes before sending
     const finalMessage = await convertShortcodesToEmoji(message);
 
@@ -265,6 +302,7 @@ export default function Chat({
       sender: user.userID,
       senderName: user.username,
       channelId: currentChannelId,
+      mentions,
     });
     setMessage("");
   };
@@ -289,7 +327,7 @@ export default function Chat({
     setMessages([]);
 
     // Join the channel
-    socket?.emit("join_channel", currentChannelId);
+    socket.emit("join_channel", currentChannelId, user.userID);
 
     // Add message history listener
     socket?.on("message_history", (history: Message[]) => {
@@ -549,34 +587,37 @@ export default function Chat({
           <h1 className="text-lg font-semibold">{roomName}</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600">
-              Welcome, {user.username}!
+              Welcome, {user?.username || "Guest"}!
             </span>
             <NavBar />
           </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) =>
-            msg.sender === user.userID ? (
-              <SentMessage
+          {messages.map((msg) => {
+            const isSentByUser = msg.sender === user?.userID;
+            const MessageComponent = isSentByUser
+              ? SentMessage
+              : ReceivedMessage;
+
+            return (
+              <div
                 key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-                messageId={msg._id}
-                reactions={msg.reactions || {}}
-              />
-            ) : (
-              <ReceivedMessage
-                key={msg._id}
-                message={msg.content}
-                sender={msg.sender}
-                senderName={msg.senderName}
-                messageId={msg._id}
-                reactions={msg.reactions || {}}
-              />
-            ),
-          )}
+                ref={(el) => {
+                  if (el) messageRefs.current[msg._id] = el;
+                }}
+                className="p-2"
+              >
+                <MessageComponent
+                  message={msg.content}
+                  sender={msg.sender}
+                  senderName={msg.senderName}
+                  messageId={msg._id}
+                  reactions={msg.reactions || {}}
+                />
+              </div>
+            );
+          })}
           <div ref={messagesEndRef} />
         </main>
 
