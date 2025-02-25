@@ -575,7 +575,8 @@ io.on("connection", async (socket) => {
       }
     },
   );
-  socket.on("add_reaction", async ({ messageId, emoji, userId }) => {
+
+  socket.on("add_reaction", async ({ messageId, emoji, userId, channelId }) => {
     try {
       const message = await Message.findById(messageId);
       if (!message) {
@@ -583,13 +584,8 @@ io.on("connection", async (socket) => {
         return;
       }
 
-      // Initialize pair of emoji key, value
-      if (!message.reactions[emoji]) {
-        message.reactions[emoji] = { count: 0, users: [] };
-      }
-
-      // Initialize reactions if it doesn't exist
       if (!message.reactions.has(emoji)) {
+        // If the emoji key doesn't exist, initialize it
         message.reactions.set(emoji, { count: 0, users: [] });
       }
 
@@ -611,13 +607,14 @@ io.on("connection", async (socket) => {
         }
       }
 
+      // Save updates
       await message.save();
       console.log("Updated Reactions:", Object.fromEntries(message.reactions));
 
-      // Emit only to users in the same channel
-      io.to(message.channelId.toString()).emit("reaction_updated", {
+      // Emit full updated reactions back to all users in the channel
+      io.to(channelId).emit("add_reaction", {
         messageId,
-        reactions: Object.fromEntries(message.reactions), // Convert Map to Object for frontend
+        reactions: Object.fromEntries(message.reactions),
       });
     } catch (error) {
       console.error("Error updating reaction:", error);
@@ -920,20 +917,33 @@ app.post("/api/reactionDetails/:messageId", async (req, res) => {
     /// Convert Map to Object and extract user details
     const reactionDetails = {};
 
+    console.log(
+      "Emoji data with decoded names (static files/dynamic files from DB:",
+    );
     // Fetch user details for all reactions
-    for (const [emoji, { count, users }] of message.reactions.entries()) {
+    for (const [
+      encodedEmoji,
+      { count, users },
+    ] of message.reactions.entries()) {
       const userObjects = await User.find(
         { _id: { $in: users } },
         { username: 1, _id: 0 },
       );
 
-      reactionDetails[emoji] = {
+      // Decode emoji filename (if it's encoded)
+      const decodedEmoji = encodedEmoji
+        .replace(/_slash_/g, "/")
+        .replace(/_dot_/g, ".");
+
+      console.log(`Decoded emoji filename: ${decodedEmoji}`);
+
+      reactionDetails[decodedEmoji] = {
         count,
         users: userObjects.map((user) => user.username), // Convert user IDs to usernames
       };
     }
+    // Return data to frontend
     res.json({ reactionDetails });
-    console.log("Reaction Details:", reactionDetails);
   } catch (error) {
     console.error("Error fetching reaction details:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -1030,6 +1040,65 @@ app.get("/api/:channelId/get-file-limit", async (req, res) => {
   } catch (error) {
     console.error("Error updating file limit:", error);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Handle fetching custom emoji
+app.get("/api/custom-emojis", async (req, res) => {
+  try {
+    const db = mongoose.connection.db;
+    const collection = db.collection("file-uploads.files");
+    const imageFiles = await collection
+      .find({ contentType: /^image\// })
+      .toArray();
+
+    console.log("Potential custom images:", imageFiles);
+
+    console.log("potential custom images: ", imageFiles);
+
+    if (!imageFiles.length) {
+      return res
+        .status(404)
+        .json({ error: "No image found in uploaded files" });
+    }
+
+    const emojis = imageFiles.map((file) => ({
+      id: file._id.toString(), // Convert ObjectId to string
+      name: file.filename,
+      src: `http://localhost:5001/api/emojis/${file._id}`, // URL to serve image
+    }));
+
+    res.json({ emojis });
+  } catch (error) {
+    console.error("Error fetching custom emojis:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Send images from GridFS to Frontend
+app.get("/api/emojis/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+      bucketName: "file-uploads",
+    });
+
+    const objectId = new mongoose.Types.ObjectId(id);
+
+    const filesCollection =
+      mongoose.connection.db.collection("file-uploads.files");
+    const file = await filesCollection.findOne({ _id: objectId });
+
+    if (!file) {
+      return res.status(404).json({ error: "File not found" });
+    }
+
+    res.set("Content-Type", file.contentType); // Set correct MIME type
+    const downloadStream = bucket.openDownloadStream(objectId);
+    downloadStream.pipe(res);
+  } catch (error) {
+    console.error("Error fetching emoji image:", error);
+    res.status(500).json({ error: "Failed to fetch image" });
   }
 });
 

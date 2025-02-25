@@ -311,7 +311,6 @@ export default function Chat({
     // Convert shortcodes before sending
     const finalMessage = await convertShortcodesToEmoji(message);
 
-    console.log("converted messages with shortcodes: ", finalMessage);
     socket?.emit("message", {
       content: finalMessage,
       sender: user.userID,
@@ -388,81 +387,6 @@ export default function Chat({
       socket?.off("message_deleted");
     };
   }, [user, isAuthenticated, isLoading, currentChannelId, router, socket]);
-
-  useEffect(() => {
-    socket?.on("reaction_updated", ({ messageId, reactions }) => {
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg._id === messageId ? { ...msg, reactions } : msg,
-        ),
-      );
-    });
-
-    return () => {
-      socket?.off("reaction_updated");
-    };
-  }, []);
-
-  // Function to handle emoji reactions
-  const handleReaction = (messageId: string, emoji: string) => {
-    if (!user) return;
-
-    socket?.emit("add_reaction", {
-      messageId,
-      emoji,
-      userId: user.userID,
-    });
-
-    setMessages((prevMessages) =>
-      prevMessages.map((msg) =>
-        msg._id === messageId
-          ? {
-              ...msg,
-              reactions: {
-                ...msg.reactions,
-                [emoji]: {
-                  count: (msg.reactions?.[emoji]?.count || 0) + 1,
-                  users: [
-                    ...(msg.reactions?.[emoji]?.users || []),
-                    user.userID,
-                  ],
-                },
-              },
-            }
-          : msg,
-      ),
-    );
-  };
-
-  // Fetch reaction details for a message
-  const getReactionDetails = async (messageId: string) => {
-    try {
-      if (!messageId) {
-        console.error("Invalid messageId:", messageId);
-        return {};
-      }
-
-      console.log("Fetching reactions for messageId:", messageId);
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/reactionDetails/${messageId}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch reaction details");
-      }
-
-      const data = await response.json();
-      return data.reactionDetails;
-    } catch (error) {
-      console.error("Error fetching reaction details:", error);
-      return {};
-    }
-  };
 
   // Add this new function to scroll to bottom
   const scrollToBottom = () => {
@@ -541,9 +465,10 @@ export default function Chat({
 
           <MessageReactions
             messageId={messageId}
-            reactions={reactions || {}}
-            onReact={handleReaction}
-            getReactionDetails={getReactionDetails}
+            reactions={reactions}
+            API_BASE_URL={API_BASE_URL}
+            channelId={currentChannelId}
+            userId={user.userID}
           />
         </div>
       </div>
@@ -563,13 +488,15 @@ export default function Chat({
           <div className="text-sm markdown-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
           </div>
-
-          <MessageReactions
-            messageId={messageId}
-            reactions={reactions || {}}
-            onReact={handleReaction}
-            getReactionDetails={getReactionDetails}
-          />
+          <span className="text-black">
+            <MessageReactions
+              messageId={messageId}
+              reactions={reactions}
+              API_BASE_URL={API_BASE_URL}
+              channelId={currentChannelId}
+              userId={user.userID}
+            />
+          </span>
           <button onClick={() => handleDeleteMessage(messageId)}>
             <Trash className="w-4 h-4 text-white hover:text-red-500 cursor-pointer" />
           </button>
@@ -598,6 +525,7 @@ export default function Chat({
         const shortcode = match[1]; // Extract emoji name from match
         const emojis = await SearchIndex.search(shortcode); // Search for the emoji
 
+        // TODO: currently hard-coded skin-tone value to 1 (range from 1-6)
         return emojis && emojis.length > 0
           ? emojis[0].skins[0].native
           : match[0]; // Replace if found, else keep original

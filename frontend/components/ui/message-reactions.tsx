@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import Picker from "@emoji-mart/react";
-import data from "@emoji-mart/data";
 import { Button } from "@/components/ui/button";
 import { Smile } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import Emoji from "@emoji-mart/react";
+import { useSocketContext } from "@/context/SocketContext";
+import EmojiPickerModal from "@/components/ui/emoji-picker";
 
 interface MessageReactionsProps {
   messageId: string;
@@ -14,20 +13,18 @@ interface MessageReactionsProps {
       users: string[];
     };
   };
-  onReact: (messageId: string, emoji: string, userId: string) => void;
-  getReactionDetails: (messageId: string) => Promise<{
-    [emoji: string]: { count: number; users: string[] };
-  }>;
+  API_BASE_URL: string;
+  channelId: string;
 }
 
 export default function MessageReactions({
   messageId,
-  reactions,
-  onReact,
-  getReactionDetails,
+  reactions: initialReaction,
+  API_BASE_URL,
+  channelId,
 }: MessageReactionsProps) {
   const { user } = useAuth();
-  const [localReactions, setLocalReactions] = useState(reactions);
+  const [localReactions, setLocalReactions] = useState(initialReaction);
   const [showPicker, setShowPicker] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [reactionDetails, setReactionDetails] = useState<{
@@ -36,65 +33,35 @@ export default function MessageReactions({
   const [loadingDetails, setLoadingDetails] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const detailsRef = useRef<HTMLDivElement>(null);
-
-  // Sync reactions with props
-  useEffect(() => {
-    setLocalReactions(reactions);
-  }, [reactions]);
-
-  // Fetch reaction details when details panel is opened
-  useEffect(() => {
-    if (showDetails && !loadingDetails) {
-      setLoadingDetails(true);
-      getReactionDetails(messageId)
-        .then((details) => setReactionDetails(details))
-        .catch(() => setReactionDetails({}))
-        .finally(() => setLoadingDetails(false));
-    }
-  }, [showDetails]);
-
-  // Load usernames when showing the reaction details
-  useEffect(() => {
-    if (showDetails) {
-      getReactionDetails(messageId).then(setLocalReactions);
-    }
-  }, [showDetails]);
+  const socket = useSocketContext();
 
   // Toggle emoji picker
-  const togglePicker = () => setShowPicker((prev) => !prev);
+  const togglePicker = async () => {
+    setShowPicker((prev) => !prev);
+  };
 
-  // Toggle details
-  const toggleDetails = () => setShowDetails((prev) => !prev);
+  // Fetch reaction details from the backend
+  const fetchReactionDetails = async () => {
+    if (loadingDetails) return;
+    setLoadingDetails(true);
 
-  // Handle emoji selection
-  const handleEmojiSelect = (emoji: typeof Emoji) => {
-    if (!user) return;
-    const selectedEmoji = emoji.native;
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/reactionDetails/${messageId}`,
+        { method: "POST" },
+      );
 
-    // Update reactions optimistically
-    setLocalReactions((prevReactions) => {
-      const existingReaction = prevReactions[selectedEmoji] || {
-        count: 0,
-        users: [],
-      };
-      const hasReacted = existingReaction.users.includes(user.userID);
+      if (!response.ok) {
+        throw new Error("Failed to fetch reaction details");
+      }
 
-      return {
-        ...prevReactions,
-        [selectedEmoji]: {
-          count: hasReacted
-            ? existingReaction.count - 1
-            : existingReaction.count + 1,
-          users: hasReacted
-            ? existingReaction.users.filter((id) => id !== user.userID)
-            : [...existingReaction.users, user.userID],
-        },
-      };
-    });
-
-    // Send reaction to backend
-    onReact(messageId, selectedEmoji, user.userID);
-    setShowPicker(false);
+      const data = await response.json();
+      setReactionDetails(data.reactionDetails);
+    } catch (error) {
+      console.error("Error fetching reaction details:", error);
+    } finally {
+      setLoadingDetails(false);
+    }
   };
 
   // Close picker when pressing Escape key
@@ -106,11 +73,8 @@ export default function MessageReactions({
     };
 
     document.addEventListener("keydown", handleEscapeKey);
-    return () => document.removeEventListener("keydown", handleEscapeKey);
-  }, []);
 
-  // Close picker when clicking outside
-  useEffect(() => {
+    // Handle Click outside
     const handleClickOutside = (event: MouseEvent) => {
       if (
         pickerRef.current &&
@@ -121,40 +85,110 @@ export default function MessageReactions({
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
-  // Close details popup when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        detailsRef.current &&
-        !detailsRef.current.contains(event.target as Node)
-      ) {
-        setShowDetails(false);
-      }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscapeKey);
     };
+  }, [channelId]);
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  // Real-time reaction updates
+  useEffect(() => {
+    socket?.on("add_reaction", ({ messageId: updatedMsgId, reactions }) => {
+      if (updatedMsgId !== messageId) return;
+
+      console.log("Real-time reaction update received:", reactions);
+
+      setLocalReactions(reactions);
+    });
+
+    return () => {
+      socket?.off("add_reaction");
+    };
+  }, [socket, messageId]);
+
+  // Handle emoji selection
+  const handleEmojiSelect = async (emoji: {
+    native?: string;
+    src?: string;
+  }) => {
+    if (!user || !channelId) return;
+
+    const selectedEmoji = emoji.native || emoji.src || "";
+    if (!selectedEmoji) {
+      console.error("Invalid emoji selected:", emoji);
+      return;
+    }
+
+    // Encode custom emoji URL to be MongoDB-safe
+    const encodedEmoji = selectedEmoji
+      .replace(/\./g, "_dot_")
+      .replace(/\//g, "_slash_");
+
+    // Optimistically update UI
+    setLocalReactions((prevReactions) => {
+      const updatedReactions = { ...prevReactions };
+      const reaction = updatedReactions[encodedEmoji] || {
+        count: 0,
+        users: [],
+      };
+      const hasReacted = reaction.users.includes(user.userID);
+
+      if (hasReacted) {
+        reaction.count -= 1;
+        reaction.users = reaction.users.filter((id) => id !== user.userID);
+        if (reaction.count === 0) delete updatedReactions[encodedEmoji];
+      } else {
+        reaction.count += 1;
+        reaction.users.push(user.userID);
+        updatedReactions[encodedEmoji] = reaction;
+      }
+
+      return updatedReactions;
+    });
+
+    // Emit reaction event to the backend (Ensure emoji is a string)
+    socket?.emit("add_reaction", {
+      messageId,
+      emoji: encodedEmoji,
+      userId: user.userID,
+      channelId,
+    });
+
+    setShowPicker(false);
+  };
 
   return (
     <div className="relative flex items-center space-x-2">
       {/* Display selected emojis with counts */}
       <div className="flex space-x-1">
-        {Object.entries(localReactions).map(([emoji, data]) => (
-          <button
-            key={emoji}
-            className={`flex items-center space-x-1 p-1 rounded-md hover:bg-gray-300 ${
-              data.users.includes(user?.userID) ? "bg-blue-200" : "bg-gray-200"
-            }`}
-            onClick={toggleDetails}
-          >
-            <span>{emoji}</span>
-            <span className="text-sm">{data.count}</span>
-          </button>
-        ))}
+        {Object.entries(localReactions || {}).map(([encoded_emoji, data]) => {
+          const emoji = encoded_emoji
+            .replace(/_slash_/g, "/")
+            .replace(/_dot_/g, ".");
+          return (
+            <button
+              key={emoji}
+              className={`flex items-center space-x-1 p-1 rounded-md hover:bg-gray-300 ${
+                data.users.includes(user?.userID)
+                  ? "bg-blue-200"
+                  : "bg-gray-200"
+              }`}
+              onClick={() => {
+                setShowDetails(true);
+                fetchReactionDetails();
+              }}
+            >
+              {emoji.startsWith("http") || emoji.startsWith("/images/") ? (
+                <img src={emoji} alt="custom emoji" className="w-6 h-6" />
+              ) : (
+                <span>{emoji}</span>
+              )}
+
+              <span className="text-sm">{data.count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Emoji Picker Button */}
@@ -164,52 +198,65 @@ export default function MessageReactions({
 
       {/* Centered Picker with Reduced Size */}
       {showPicker && (
-        <div
-          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
-          onClick={() => setShowPicker(false)} // Close picker when clicking outside
-        >
-          <div
-            ref={pickerRef}
-            className="bg-gray-900 p-4 rounded-lg shadow-lg"
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
-          >
-            <Picker
-              data={data}
-              onEmojiSelect={handleEmojiSelect}
-              theme="dark"
-              perLine={6} // Reduce width
-              emojiSize={22} // Smaller emoji size
-            />
-          </div>
-        </div>
+        <EmojiPickerModal
+          API_BASE_URL={API_BASE_URL}
+          onSelectEmoji={handleEmojiSelect}
+          onClose={() => setShowPicker(false)}
+        />
       )}
-      {/* Reaction Details Popup */}
+
+      {/* Reaction Details Modal */}
       {showDetails && (
         <div
-          ref={detailsRef}
-          className="absolute left-0 mt-2 bg-white p-3 rounded-md shadow-lg z51 w-56 max-w-xs border border-gray-300"
-          style={{ top: "100%" }} // Pushes below the message
+          className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"
+          onClick={() => setShowDetails(false)}
         >
-          <h3 className="text-sm font-semibold mb-2">Reactions</h3>
-          {loadingDetails ? (
-            <p className="text-xs text-gray-500">Loading...</p>
-          ) : (
-            Object.entries(reactionDetails).map(([emoji, data]) => (
-              <div key={emoji} className="py-1">
-                <div className="flex justify-between items-center">
-                  <span>{emoji}</span>
-                  <span className="text-xs text-gray-600">
-                    {data.count} reacted
-                  </span>
+          <div
+            ref={detailsRef}
+            className="bg-white p-4 rounded-lg shadow-lg max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold mb-2 text-center">
+              Reactions
+            </h3>
+
+            {loadingDetails ? (
+              <p className="text-center text-gray-500">Loading...</p>
+            ) : (
+              Object.entries(reactionDetails).map(([emoji, data]) => (
+                <div key={emoji} className="py-1">
+                  <div className="flex justify-between items-center">
+                    <span>
+                      {emoji.startsWith("http") ||
+                      emoji.startsWith("/images/") ? (
+                        <img
+                          src={emoji}
+                          alt="custom emoji"
+                          className="w-6 h-6"
+                        />
+                      ) : (
+                        emoji
+                      )}
+                    </span>
+                    <span className="text-xs text-gray-600">
+                      {data.count} reacted
+                    </span>
+                  </div>
+                  <ul className="text-xs text-gray-500">
+                    {data.users.map((username, index) => (
+                      <li key={index}>{username}</li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="text-xs text-gray-500">
-                  {data.users.map((username, index) => (
-                    <li key={index}>{username}</li>
-                  ))}
-                </ul>
-              </div>
-            ))
-          )}
+              ))
+            )}
+
+            <div className="flex justify-end mt-4">
+              <Button variant="ghost" onClick={() => setShowDetails(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

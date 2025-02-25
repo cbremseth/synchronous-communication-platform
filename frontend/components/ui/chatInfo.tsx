@@ -40,6 +40,9 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [fileSizeLimit, setFileSizeLimit] = useState<number | "">("");
+  // const [customEmojis, setCustomEmojis] = useState<
+  //   { id: string; native: string }[]
+  // >([]);
 
   // Fetch File Upload Limit
   const getChannelFileUploadLimit = useCallback(async () => {
@@ -244,7 +247,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       </a>
                       <p className="text-xs">Uploaded by {file.senderName}</p>
                     </span>
-                    <span>
+                    <div className="flex items-center">
                       <button
                         className="icon-button mr-2"
                         onClick={() =>
@@ -269,7 +272,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                       >
                         <DownloadIcon className="h-5 w-5 text-gray-500 hover:text-gray-700" />
                       </button>
-                    </span>
+                    </div>
                   </li>
                 ))}
               </ul>
