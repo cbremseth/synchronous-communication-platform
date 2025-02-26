@@ -279,6 +279,16 @@ export default function Chat({
         }
         return;
       }
+      // Emit "fileUpload" event to backend
+      socket?.emit("fileUpload", {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        senderName: user.username,
+        channelId: currentChannelId,
+      });
+
+      console.log("File upload request sent successfully");
 
       console.log("Log: File uploaded successfully");
     } catch (error) {
@@ -286,19 +296,19 @@ export default function Chat({
     }
   };
 
-  useEffect(() => {
-    const handleFileUpload = (file: FileInfo) => {
-      console.log("Received a file upload event:", file);
-      setFiles((prevFiles) => [...prevFiles, file]);
-    };
+  const handleFileUploadEvent = useCallback((file: FileInfo) => {
+    console.log("Received a file upload event:", file);
+    setFiles((prevFiles) => [...prevFiles, file]);
+  }, []);
 
+  useEffect(() => {
     // Listen for the file_uploaded event
-    socket?.on("file_uploaded", handleFileUpload);
+    socket?.on("file_uploaded", handleFileUploadEvent);
 
     return () => {
-      socket?.off("file_uploaded", handleFileUpload);
+      socket?.off("file_uploaded", handleFileUploadEvent);
     };
-  }, [currentChannelId, socket]);
+  }, [handleFileUploadEvent, socket]);
 
   const onClick = async () => {
     if (!user || !currentChannelId || message.trim() === "") return;
