@@ -40,9 +40,6 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [fileSizeLimit, setFileSizeLimit] = useState<number | "">("");
-  // const [customEmojis, setCustomEmojis] = useState<
-  //   { id: string; native: string }[]
-  // >([]);
 
   // Fetch File Upload Limit
   const getChannelFileUploadLimit = useCallback(async () => {

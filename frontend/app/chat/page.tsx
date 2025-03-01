@@ -279,15 +279,6 @@ export default function Chat({
         }
         return;
       }
-      // Emit "fileUpload" event to backend
-      socket?.emit("fileUpload", {
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        senderName: user.username,
-        channelId: currentChannelId,
-      });
-
       console.log("File upload request sent successfully");
 
       console.log("Log: File uploaded successfully");
