@@ -10,9 +10,6 @@ import { EditChannelModal } from "@/components/ui/edit-channel-modal";
 import Notifications from "@/components/ui/notifications";
 import { useSocketContext } from "../../context/SocketContext";
 
-
-
-
 interface Channel {
   _id: string;
   name: string;
@@ -37,7 +34,6 @@ export default function Sidebar() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const socket = useSocketContext(); // No destructuring, just get the socket
-
 
   useEffect(() => {
     if (!socket) return;
@@ -115,7 +111,6 @@ export default function Sidebar() {
       if (!response.ok) throw new Error("Failed to create channel");
 
       const { channel } = await response.json();
-
     } catch (err) {
       console.error(err);
       setError("Error creating channel");
@@ -179,7 +174,6 @@ export default function Sidebar() {
         prev.map((ch) => (ch._id === channelId ? channel : ch)),
       );
       socket?.emit("channelDeleted", channelId);
-
     } catch (err) {
       console.error(err);
       setError("Error archiving channel");
