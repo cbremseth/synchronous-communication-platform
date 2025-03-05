@@ -13,7 +13,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    const manager = new Manager("http://localhost:5001");
+    const manager = new Manager(process.env.NEXT_PUBLIC_API_URL || "");
     const socketInstance = manager.socket("/");
     setSocket(socketInstance);
 

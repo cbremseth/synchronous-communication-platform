@@ -75,7 +75,7 @@ export default function Sidebar() {
 
       try {
         const response = await fetch(
-          `http://localhost:5001/api/channels?userId=${user.userID}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/channels?userId=${user.userID}`,
         );
         if (!response.ok) throw new Error("Failed to fetch channels");
 
@@ -96,17 +96,20 @@ export default function Sidebar() {
     if (!user?.userID) return;
 
     try {
-      const response = await fetch("http://localhost:5001/api/channels", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/channels`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name,
+            users: [...users, user.userID],
+            createdBy: user.userID,
+          }),
         },
-        body: JSON.stringify({
-          name,
-          users: [...users, user.userID],
-          createdBy: user.userID,
-        }),
-      });
+      );
 
       if (!response.ok) throw new Error("Failed to create channel");
     } catch (err) {
@@ -127,7 +130,7 @@ export default function Sidebar() {
 
     try {
       const response = await fetch(
-        `http://localhost:5001/api/channels/${channelId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/channels/${channelId}`,
         {
           method: "PATCH",
           headers: {
@@ -155,7 +158,7 @@ export default function Sidebar() {
 
     try {
       const response = await fetch(
-        `http://localhost:5001/api/channels/${channelId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/channels/${channelId}`,
         {
           method: "PATCH",
           headers: {

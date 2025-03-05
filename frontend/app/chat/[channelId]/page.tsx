@@ -13,7 +13,7 @@ export default function ChannelPage() {
     const fetchChannelDetails = async () => {
       try {
         const response = await fetch(
-          `http://localhost:5001/api/channels/${channelId}`,
+          `${process.env.NEXT_PUBLIC_API_URL}/channels/${channelId}`,
         );
         if (!response.ok) throw new Error("Failed to fetch channel");
         const channel = await response.json();

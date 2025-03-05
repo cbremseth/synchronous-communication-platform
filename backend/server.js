@@ -1069,7 +1069,7 @@ app.get("/api/custom-emojis", async (req, res) => {
     const emojis = imageFiles.map((file) => ({
       id: file._id.toString(), // Convert ObjectId to string
       name: file.filename,
-      src: `http://localhost:5001/api/emojis/${file._id}`, // URL to serve image
+      src: `${process.env.NEXT_PUBLIC_API_URL}/emojis/${file._id}`, // URL to serve image
     }));
 
     res.json({ emojis });

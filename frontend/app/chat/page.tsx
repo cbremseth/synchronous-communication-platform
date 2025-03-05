@@ -40,10 +40,7 @@ import remarkGfm from "remark-gfm"; // Supports GitHub-flavored Markdown (tables
 init({ data });
 
 // Use API URL dynamically based on whether the app is running inside Docker or locally
-const API_BASE_URL =
-  typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "http://localhost:5001"
-    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface Message {
   _id: string;
@@ -135,7 +132,7 @@ export default function Chat({
   // Handle fetching files for current channel
   useEffect(() => {
     if (currentChannelId) {
-      fetch(`${API_BASE_URL}/api/files/${currentChannelId}`)
+      fetch(`${baseUrl}/api/files/${currentChannelId}`)
         .then((response) => response.json())
         .then((data) => {
           setFiles(data);
@@ -163,9 +160,7 @@ export default function Chat({
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/searchbar?query=${query}`,
-      );
+      const response = await fetch(`${baseUrl}/api/searchbar?query=${query}`);
       if (!response.ok) throw new Error("Failed to fetch search results");
 
       const data = await response.json();
@@ -212,16 +207,13 @@ export default function Chat({
     if (!user) return;
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/messages/${messageId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ userId: user.userID }), // Ensure user is authenticated
+      const response = await fetch(`${baseUrl}/api/messages/${messageId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({ userId: user.userID }), // Ensure user is authenticated
+      });
 
       if (!response.ok) {
         console.error("Failed to delete message");
@@ -257,7 +249,7 @@ export default function Chat({
     formData.append("senderName", user.username);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/upload`, {
+      const response = await fetch(`${baseUrl}/api/upload`, {
         method: "POST",
         body: formData,
       });
@@ -467,7 +459,7 @@ export default function Chat({
           <MessageReactions
             messageId={messageId}
             reactions={reactions}
-            API_BASE_URL={API_BASE_URL}
+            API_BASE_URL={baseUrl}
             channelId={currentChannelId}
             userId={user.userID}
           />
@@ -493,7 +485,7 @@ export default function Chat({
             <MessageReactions
               messageId={messageId}
               reactions={reactions}
-              API_BASE_URL={API_BASE_URL}
+              API_BASE_URL={baseUrl}
               channelId={currentChannelId}
               userId={user.userID}
             />
@@ -701,7 +693,7 @@ export default function Chat({
           <ChatInfo
             channelId={currentChannelId}
             files={files}
-            API_BASE_URL={API_BASE_URL}
+            API_BASE_URL={baseUrl}
             current_userID={user.userID}
           />
         )}

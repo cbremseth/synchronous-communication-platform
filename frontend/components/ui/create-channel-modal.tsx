@@ -46,7 +46,7 @@ export function CreateChannelModal({
 
     try {
       const response = await fetch(
-        `http://localhost:5001/api/users/search?q=${query}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/users/search?q=${query}`,
       );
       if (!response.ok) throw new Error("Failed to search users");
       const users = await response.json();

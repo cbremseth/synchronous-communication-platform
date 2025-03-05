@@ -20,7 +20,7 @@ interface Notification {
 }
 
 // Create a singleton socket instance
-const manager = new Manager("http://localhost:5001", {
+const manager = new Manager(process.env.NEXT_PUBLIC_API_URL || "", {
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
@@ -37,7 +37,7 @@ export default function Notifications() {
     if (!user?.userID) return;
     try {
       const response = await fetch(
-        `http://localhost:5001/api/notifications?userId=${user.userID}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/notifications?userId=${user.userID}`,
       );
       if (!response.ok) throw new Error("Failed to fetch notifications");
       const data = await response.json();
@@ -81,7 +81,7 @@ export default function Notifications() {
   const handleNotificationClick = async (notification: Notification) => {
     try {
       // Mark notification as read
-      await fetch("http://localhost:5001/api/notifications/read", {
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/notifications/read`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

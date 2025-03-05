@@ -15,6 +15,9 @@ function error_exit {
 
 # Function to create default environment file
 function create_default_env {
+    # Calculate API URL based on server IP
+    local api_url="http://${SERVER_IP}/api"
+
     cat > .env << EOL
 # Node Environment
 APP_ENV=production
@@ -29,7 +32,7 @@ MONGODB_URI=mongodb://\${MONGO_USER}:\${MONGO_PASSWORD}@mongodb:27017/
 
 # Frontend
 FRONTEND_PORT=3000
-NEXT_PUBLIC_API_URL=http://${SERVER_IP}/api
+NEXT_PUBLIC_API_URL=${api_url}
 
 # Development Environment
 NEXT_TELEMETRY_DISABLED=1
@@ -37,6 +40,17 @@ NEXT_TELEMETRY_DISABLED=1
 # NextAuth
 NEXTAUTH_URL=http://${SERVER_IP}
 NEXTAUTH_SECRET="e9HI2RipS2McD4jwPjSoWvuhrbifIiC1NQk3/PHfK08="
+
+# Server Configuration
+SERVER_URL=http://${SERVER_IP}
+EOL
+
+    # Create a separate backend environment file if needed
+    cat > backend/.env << EOL
+NODE_ENV=production
+MONGODB_URI=mongodb://\${MONGO_USER}:\${MONGO_PASSWORD}@mongodb:27017/
+PORT=5001
+SERVER_URL=http://${SERVER_IP}
 EOL
 }
 
@@ -123,6 +137,7 @@ server {
 
     # Backend (Node.js)
     location /api {
+        rewrite ^/api/(.*) /\$1 break;
         proxy_pass http://localhost:5001;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
@@ -165,10 +180,17 @@ if [ -f "$PARENT_DIR/.env" ]; then
     # Update the IP-specific variables in the existing .env
     sed -i "s|^NEXTAUTH_URL=.*|NEXTAUTH_URL=http://${SERVER_IP}|g" .env
     sed -i "s|^NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=http://${SERVER_IP}/api|g" .env
+    sed -i "s|^SERVER_URL=.*|SERVER_URL=http://${SERVER_IP}|g" .env
 else
     echo "[INFO] Creating default environment file..."
     create_default_env
 fi
+
+# Ensure backend directory exists
+mkdir -p backend
+
+# Copy environment file to backend directory
+cp .env backend/.env || error_exit "Failed to copy .env to backend"
 
 # Run Docker Compose
 echo "[INFO] Starting Docker Compose..."
