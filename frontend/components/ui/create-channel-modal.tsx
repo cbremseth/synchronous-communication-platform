@@ -38,6 +38,11 @@ export function CreateChannelModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<User[]>([]);
 
+  const API_BASE_URL =
+    typeof window !== "undefined" && window.location.hostname === "localhost"
+      ? "http://localhost:5001"
+      : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
   const searchUsers = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -46,7 +51,7 @@ export function CreateChannelModal({
 
     try {
       const response = await fetch(
-        `http://localhost:5001/api/users/search?q=${query}`,
+        `${API_BASE_URL}/api/users/search?q=${query}`,
       );
       if (!response.ok) throw new Error("Failed to search users");
       const users = await response.json();

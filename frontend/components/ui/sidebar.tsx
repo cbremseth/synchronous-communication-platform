@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { CreateChannelModal } from "@/components/ui/create-channel-modal";
 import { EditChannelModal } from "@/components/ui/edit-channel-modal";
 import Notifications from "@/components/ui/notifications";
+import { useSocketContext } from "@/context/SocketContext";
 
 interface Channel {
   _id: string;
@@ -32,6 +33,12 @@ export default function Sidebar() {
   const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
+  const socket = useSocketContext();
+
+  const API_BASE_URL =
+    typeof window !== "undefined" && window.location.hostname === "localhost"
+      ? "http://localhost:5001"
+      : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
   // Fetch channels from backend
   useEffect(() => {
@@ -40,7 +47,7 @@ export default function Sidebar() {
 
       try {
         const response = await fetch(
-          `http://localhost:5001/api/channels?userId=${user.userID}`,
+          `${API_BASE_URL}/api/channels?userId=${user.userID}`,
         );
         if (!response.ok) throw new Error("Failed to fetch channels");
 
@@ -57,11 +64,47 @@ export default function Sidebar() {
     fetchChannels();
   }, [user]);
 
+  // Fetch channels from backend
+  const fetchChannels = async () => {
+    if (!user?.userID) return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/channels?userId=${user.userID}`,
+      );
+      if (!response.ok) throw new Error("Failed to fetch channels");
+
+      const data = await response.json();
+      setChannels(data);
+    } catch (err) {
+      setError("Error fetching channels");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchChannels();
+
+    const handleChannelUpdate = (updatedChannels: Channel[]) => {
+      console.log("Received updated channels:", updatedChannels);
+      setChannels(updatedChannels);
+    };
+
+    // Listen for `channelUpdated` event from WebSocket
+    socket?.on("channelUpdated", handleChannelUpdate);
+
+    return () => {
+      socket?.off("channelUpdated", handleChannelUpdate);
+    };
+  }, [socket, user]);
+
   const createNewChannel = async (name: string, users: string[]) => {
     if (!user?.userID) return;
 
     try {
-      const response = await fetch("http://localhost:5001/api/channels", {
+      const response = await fetch(`${API_BASE_URL}/api/channels`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -95,7 +138,7 @@ export default function Sidebar() {
 
     try {
       const response = await fetch(
-        `http://localhost:5001/api/channels/${channelId}`,
+        `${API_BASE_URL}/api/channels/${channelId}`,
         {
           method: "PATCH",
           headers: {
@@ -122,7 +165,7 @@ export default function Sidebar() {
 
     try {
       const response = await fetch(
-        `http://localhost:5001/api/channels/${channelId}`,
+        `${API_BASE_URL}/api/channels/${channelId}`,
         {
           method: "PATCH",
           headers: {

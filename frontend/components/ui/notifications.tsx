@@ -19,8 +19,13 @@ interface Notification {
   timestamp: string;
 }
 
+const API_BASE_URL =
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:5001"
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
 // Create a singleton socket instance
-const manager = new Manager("http://localhost:5001", {
+const manager = new Manager(`${API_BASE_URL}`, {
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
@@ -37,7 +42,7 @@ export default function Notifications() {
     if (!user?.userID) return;
     try {
       const response = await fetch(
-        `http://localhost:5001/api/notifications?userId=${user.userID}`,
+        `${API_BASE_URL}/api/notifications?userId=${user.userID}`,
       );
       if (!response.ok) throw new Error("Failed to fetch notifications");
       const data = await response.json();
@@ -81,7 +86,7 @@ export default function Notifications() {
   const handleNotificationClick = async (notification: Notification) => {
     try {
       // Mark notification as read
-      await fetch("http://localhost:5001/api/notifications/read", {
+      await fetch(`${API_BASE_URL}/api/notifications/read`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
