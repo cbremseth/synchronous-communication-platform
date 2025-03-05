@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Variables
-REPO_URL="https://github.com/nsitapara/synchronous-communication-platform.git"
+REPO_URL="git@github.com:cbremseth/synchronous-communication-platform.git"
 CLONE_DIR="synchronous-communication-platform"
 
 # Get the server's public IP address
-SERVER_IP=$(curl -s ifconfig.me)
+SERVER_IP=$(curl -4 ifconfig.me)
 
 # Function to display an error and exit
 function error_exit {
