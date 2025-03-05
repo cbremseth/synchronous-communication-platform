@@ -95,9 +95,7 @@ app.post("/api/channels", async (req, res) => {
       .populate("users", "username email")
       .populate("createdBy", "username");
 
-    // Emit the update to ALL connected clients
-    const updatedChannels = await Channel.find();
-    io.emit("channelUpdated", updatedChannels);
+    io.emit("channelCreated", populatedChannel);
 
     res.status(201).json({
       message: "Channel created successfully",
@@ -126,6 +124,8 @@ app.patch("/api/channels/:id", async (req, res) => {
     if (!updatedChannel) {
       return res.status(404).json({ error: "Channel not found" });
     }
+
+    io.emit("channelUpdated", updatedChannel);
 
     res.status(200).json({
       message: "Channel updated successfully",

@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { CreateChannelModal } from "@/components/ui/create-channel-modal";
 import { EditChannelModal } from "@/components/ui/edit-channel-modal";
 import Notifications from "@/components/ui/notifications";
-import { useSocketContext } from "@/context/SocketContext";
+import { useSocketContext } from "../../context/SocketContext";
 
 interface Channel {
   _id: string;
@@ -33,12 +33,48 @@ export default function Sidebar() {
   const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
+
   const socket = useSocketContext();
 
   const API_BASE_URL =
     typeof window !== "undefined" && window.location.hostname === "localhost"
       ? "http://localhost:5001"
       : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
+  const socket = useSocketContext(); // No destructuring, just get the socket
+
+  useEffect(() => {
+    if (!socket) return;
+
+    console.log("Socket connected:", socket.connected); // Debugging
+
+    const handleNewChannel = (newChannel: Channel) => {
+      console.log("New channel received:", newChannel); // Debugging
+      setChannels((prev) => [...prev, newChannel]);
+    };
+
+    const handleDeletedChannel = (channelId: string) => {
+      console.log("Channel deleted event received:", channelId); // Debugging
+      setChannels((prev) => prev.filter((ch) => ch._id !== channelId));
+    };
+
+    const handleUpdatedChannel = (updatedChannel: Channel) => {
+      console.log("Channel updated event received:", updatedChannel); // Debugging
+      setChannels((prev) =>
+        prev.map((ch) => (ch._id === updatedChannel._id ? updatedChannel : ch)),
+      );
+    };
+
+    socket.on("channelCreated", handleNewChannel);
+    socket.on("channelDeleted", handleDeletedChannel);
+    socket.on("channelUpdated", handleUpdatedChannel);
+
+    return () => {
+      socket.off("channelCreated", handleNewChannel);
+      socket.off("channelDeleted", handleDeletedChannel);
+      socket.off("channelUpdated", handleUpdatedChannel);
+    };
+  }, [socket]);
 
   // Fetch channels from backend
   useEffect(() => {
@@ -117,9 +153,6 @@ export default function Sidebar() {
       });
 
       if (!response.ok) throw new Error("Failed to create channel");
-
-      const { channel } = await response.json();
-      setChannels((prev) => [...prev, channel]);
     } catch (err) {
       console.error(err);
       setError("Error creating channel");
@@ -154,6 +187,7 @@ export default function Sidebar() {
       setChannels((prev) =>
         prev.map((ch) => (ch._id === channelId ? channel : ch)),
       );
+      socket?.emit("channelUpdated", channel);
     } catch (err) {
       console.error(err);
       setError("Error updating channel");
@@ -181,6 +215,7 @@ export default function Sidebar() {
       setChannels((prev) =>
         prev.map((ch) => (ch._id === channelId ? channel : ch)),
       );
+      socket?.emit("channelDeleted", channelId);
     } catch (err) {
       console.error(err);
       setError("Error archiving channel");
