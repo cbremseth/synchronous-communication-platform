@@ -48,7 +48,7 @@ export default function MessageReactions({
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/reactionDetails/${messageId}`,
-        { method: "POST" },
+        { method: "POST" }
       );
 
       if (!response.ok) {
@@ -179,8 +179,22 @@ export default function MessageReactions({
                 fetchReactionDetails();
               }}
             >
-              {emoji.startsWith("http") || emoji.startsWith("/images/") ? (
-                <img src={emoji} alt="custom emoji" className="w-6 h-6" />
+              {emoji.startsWith("http") ||
+              emoji.startsWith("/images/") ||
+              emoji.startsWith("/api/emojis/") ? (
+                <img
+                  src={
+                    emoji.startsWith("/api/")
+                      ? `${API_BASE_URL}${emoji}`
+                      : emoji
+                  }
+                  alt="custom emoji"
+                  className="w-6 h-6"
+                  onError={(e) => {
+                    console.error("Failed to load emoji:", emoji);
+                    // Add fallback image or hide the broken image
+                  }}
+                />
               ) : (
                 <span>{emoji}</span>
               )}
@@ -228,9 +242,14 @@ export default function MessageReactions({
                   <div className="flex justify-between items-center">
                     <span>
                       {emoji.startsWith("http") ||
-                      emoji.startsWith("/images/") ? (
+                      emoji.startsWith("/images/") ||
+                      emoji.startsWith("/api/emojis/") ? (
                         <img
-                          src={emoji}
+                          src={
+                            emoji.startsWith("/api/")
+                              ? `${API_BASE_URL}${emoji}`
+                              : emoji
+                          }
                           alt="custom emoji"
                           className="w-6 h-6"
                         />
