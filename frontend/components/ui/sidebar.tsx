@@ -216,36 +216,36 @@ export default function Sidebar() {
       <div className="h-1/2 overflow-y-auto mt-4 space-y-2">
         {activeChannels.length > 0
           ? activeChannels.map((channel) => (
-            <Card
-              key={channel._id}
-              className="p-2 cursor-pointer bg-gray-700 hover:bg-gray-600"
-            >
-              <div className="flex justify-between items-start">
-                <div
-                  className="flex-1"
-                  onClick={() => handleChannelClick(channel._id)}
-                >
-                  <span>{channel.name}</span>
-                  <span className="text-xs text-gray-400 block">
-                    {channel.users.length} members
-                  </span>
-                </div>
-                {channel.createdBy?._id === user?.userID && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-gray-400 hover:text-white"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingChannel(channel);
-                    }}
+              <Card
+                key={channel._id}
+                className="p-2 cursor-pointer bg-gray-700 hover:bg-gray-600"
+              >
+                <div className="flex justify-between items-start">
+                  <div
+                    className="flex-1"
+                    onClick={() => handleChannelClick(channel._id)}
                   >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            </Card>
-          ))
+                    <span>{channel.name}</span>
+                    <span className="text-xs text-gray-400 block">
+                      {channel.users.length} members
+                    </span>
+                  </div>
+                  {channel.createdBy?._id === user?.userID && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-gray-400 hover:text-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingChannel(channel);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </Card>
+            ))
           : !loading && <p className="text-gray-400">No channels available</p>}
       </div>
 
