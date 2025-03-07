@@ -80,7 +80,7 @@ export default function Sidebar() {
 
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/channels?userId=${user.userID}`,
+          `${API_BASE_URL}/api/channels?userId=${user.userID}`,
         );
         if (!response.ok) throw new Error("Failed to fetch channels");
 
@@ -101,7 +101,7 @@ export default function Sidebar() {
     if (!user?.userID) return;
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/channels`, {
+      const response = await fetch(`${API_BASE_URL}/api/channels`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -132,7 +132,7 @@ export default function Sidebar() {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/channels/${channelId}`,
+        `${API_BASE_URL}/api/channels/${channelId}`,
         {
           method: "PATCH",
           headers: {
@@ -160,7 +160,7 @@ export default function Sidebar() {
 
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/channels/${channelId}`,
+        `${API_BASE_URL}/api/channels/${channelId}`,
         {
           method: "PATCH",
           headers: {
