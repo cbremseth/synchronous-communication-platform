@@ -33,15 +33,12 @@ export default function Sidebar() {
   const { user } = useAuth();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
-
-  const socket = useSocketContext();
+  const socket = useSocketContext(); // No destructuring, just get the socket
 
   const API_BASE_URL =
     typeof window !== "undefined" && window.location.hostname === "localhost"
       ? "http://localhost:5001"
       : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
-
-  const socket = useSocketContext(); // No destructuring, just get the socket
 
   useEffect(() => {
     if (!socket) return;
@@ -99,42 +96,6 @@ export default function Sidebar() {
 
     fetchChannels();
   }, [user]);
-
-  // Fetch channels from backend
-  const fetchChannels = async () => {
-    if (!user?.userID) return;
-
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/channels?userId=${user.userID}`,
-      );
-      if (!response.ok) throw new Error("Failed to fetch channels");
-
-      const data = await response.json();
-      setChannels(data);
-    } catch (err) {
-      setError("Error fetching channels");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchChannels();
-
-    const handleChannelUpdate = (updatedChannels: Channel[]) => {
-      console.log("Received updated channels:", updatedChannels);
-      setChannels(updatedChannels);
-    };
-
-    // Listen for `channelUpdated` event from WebSocket
-    socket?.on("channelUpdated", handleChannelUpdate);
-
-    return () => {
-      socket?.off("channelUpdated", handleChannelUpdate);
-    };
-  }, [socket, user]);
 
   const createNewChannel = async (name: string, users: string[]) => {
     if (!user?.userID) return;
@@ -255,36 +216,36 @@ export default function Sidebar() {
       <div className="h-1/2 overflow-y-auto mt-4 space-y-2">
         {activeChannels.length > 0
           ? activeChannels.map((channel) => (
-              <Card
-                key={channel._id}
-                className="p-2 cursor-pointer bg-gray-700 hover:bg-gray-600"
-              >
-                <div className="flex justify-between items-start">
-                  <div
-                    className="flex-1"
-                    onClick={() => handleChannelClick(channel._id)}
-                  >
-                    <span>{channel.name}</span>
-                    <span className="text-xs text-gray-400 block">
-                      {channel.users.length} members
-                    </span>
-                  </div>
-                  {channel.createdBy?._id === user?.userID && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-gray-400 hover:text-white"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingChannel(channel);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  )}
+            <Card
+              key={channel._id}
+              className="p-2 cursor-pointer bg-gray-700 hover:bg-gray-600"
+            >
+              <div className="flex justify-between items-start">
+                <div
+                  className="flex-1"
+                  onClick={() => handleChannelClick(channel._id)}
+                >
+                  <span>{channel.name}</span>
+                  <span className="text-xs text-gray-400 block">
+                    {channel.users.length} members
+                  </span>
                 </div>
-              </Card>
-            ))
+                {channel.createdBy?._id === user?.userID && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-gray-400 hover:text-white"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingChannel(channel);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </Card>
+          ))
           : !loading && <p className="text-gray-400">No channels available</p>}
       </div>
 
