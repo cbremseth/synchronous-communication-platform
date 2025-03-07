@@ -112,7 +112,7 @@ export default function Chat({
 
   const pickerRef = useRef<HTMLDivElement>(null);
   const socket = useSocketContext();
-  const [channels, setChannels] = useState([]);
+  const [, setChannels] = useState([]);
 
   // Add function to fetch general channel
   const fetchGeneralChannel = useCallback(async () => {
@@ -277,8 +277,7 @@ export default function Chat({
           alert("Error: Channel not found.");
         } else if (response.status === 402) {
           alert(
-            `Error: Invalid file size limit, current file size: ${
-              file.size / 1024
+            `Error: Invalid file size limit, current file size: ${file.size / 1024
             } KB.`,
           );
         } else if (response.status === 500) {
