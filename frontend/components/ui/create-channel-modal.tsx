@@ -39,9 +39,9 @@ export function CreateChannelModal({
   const [searchResults, setSearchResults] = useState<User[]>([]);
 
   const API_BASE_URL =
-    typeof window !== "undefined" && window.location.hostname === "localhost"
-      ? "http://localhost:5001"
-      : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:5001"
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
   const searchUsers = async (query: string) => {
     if (!query.trim()) {

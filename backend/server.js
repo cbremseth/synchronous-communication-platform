@@ -18,6 +18,11 @@ import Notification from "./models/Notification.js";
 const app = express();
 const MAXLIMIT_FILE_UPLOAD = 100; // 100KB system limit
 
+const API_BASE_URL =
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:5001"
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
 app.use(cors());
 app.use(express.json());
 
@@ -1066,10 +1071,11 @@ app.get("/api/custom-emojis", async (req, res) => {
         .json({ error: "No image found in uploaded files" });
     }
 
+  
     const emojis = imageFiles.map((file) => ({
       id: file._id.toString(), // Convert ObjectId to string
       name: file.filename,
-      src: `http://localhost:5001/api/emojis/${file._id}`, // URL to serve image
+      src: `${process.env.NEXT_PUBLIC_API_URL}/api/emojis/${file._id}`, // URL to serve image
     }));
 
     res.json({ emojis });
