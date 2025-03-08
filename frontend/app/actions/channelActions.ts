@@ -18,7 +18,7 @@ export async function getOrCreateGeneralChannel(
 ): Promise<Channel> {
   try {
     const response = await fetch(
-      `http://backend:5001/api/channels/general?userId=${userId}`,
+      `${process.env.NEXT_PUBLIC_API_URL}/api/channels/general?userId=${userId}`,
       {
         cache: "no-store",
       },

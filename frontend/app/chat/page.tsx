@@ -128,7 +128,16 @@ export default function Chat({
 
   // Fetch initial channels from API
   const fetchChannels = async () => {
-    const res = await fetch(`${API_BASE_URL}/api/channels`);
+    if (!user.userId) {
+      console.log("User Id is required to fetch channels.");
+      return;
+    }
+    const res = await fetch(
+      `${API_BASE_URL}/api/channels?userId=${user.userId}`,
+    );
+    if (!res.ok) {
+      throw new Error(`Error: ${res.status} ${res.statusText}`);
+    }
     const data = await res.json();
     setChannels(data);
   };
