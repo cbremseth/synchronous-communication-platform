@@ -36,9 +36,9 @@ export default function Sidebar() {
   const socket = useSocketContext();
 
   const API_BASE_URL =
-  typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "http://localhost:5001"
-    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+    typeof window !== "undefined" && window.location.hostname === "localhost"
+      ? "http://localhost:5001"
+      : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
   // Fetch channels from backend
   useEffect(() => {
@@ -64,25 +64,25 @@ export default function Sidebar() {
     fetchChannels();
   }, [user]);
 
-    // Fetch channels from backend
-    const fetchChannels = async () => {
-      if (!user?.userID) return;
+  // Fetch channels from backend
+  const fetchChannels = async () => {
+    if (!user?.userID) return;
 
-      try {
-        const response = await fetch(
-          `${API_BASE_URL}/api/channels?userId=${user.userID}`,
-        );
-        if (!response.ok) throw new Error("Failed to fetch channels");
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/channels?userId=${user.userID}`,
+      );
+      if (!response.ok) throw new Error("Failed to fetch channels");
 
-        const data = await response.json();
-        setChannels(data);
-      } catch (err) {
-        setError("Error fetching channels");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      const data = await response.json();
+      setChannels(data);
+    } catch (err) {
+      setError("Error fetching channels");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchChannels();

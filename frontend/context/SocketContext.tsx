@@ -8,9 +8,9 @@ const SocketContext = createContext<Socket | null>(null);
 export const useSocketContext = () => useContext(SocketContext);
 
 const API_BASE_URL =
-typeof window !== "undefined" && window.location.hostname === "localhost"
-  ? "http://localhost:5001"
-  : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:5001"
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({
   children,

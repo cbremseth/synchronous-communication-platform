@@ -1066,7 +1066,6 @@ app.get("/api/custom-emojis", async (req, res) => {
         .json({ error: "No image found in uploaded files" });
     }
 
-  
     const emojis = imageFiles.map((file) => ({
       id: file._id.toString(), // Convert ObjectId to string
       name: file.filename,
