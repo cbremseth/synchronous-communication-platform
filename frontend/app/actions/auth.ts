@@ -64,7 +64,7 @@ export async function signUpAction(values: SignUpFormData) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(values),
-      }
+      },
     );
 
     const data = await response.json();
@@ -127,12 +127,12 @@ export async function updateProfileAction({
           "Content-Type": "application/json",
         },
         body: JSON.stringify(updateData),
-      }
+      },
     );
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(
-        errorData.message || "Failed to update profile on the server"
+        errorData.message || "Failed to update profile on the server",
       );
     }
     const updatedUser = await response.json();
@@ -163,12 +163,12 @@ export async function deleteAccountAction({
         headers: {
           "Content-Type": "application/json",
         },
-      }
+      },
     );
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(
-        errorData.message || "Failed to delete account on the server"
+        errorData.message || "Failed to delete account on the server",
       );
     }
     return { success: true };
@@ -201,7 +201,7 @@ export async function updateUserStatusAction({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ status: newStatus }),
-      }
+      },
     );
 
     if (!response.ok) {

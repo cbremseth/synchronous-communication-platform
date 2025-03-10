@@ -104,7 +104,7 @@ export function ProfileForm() {
   const onDelete = async () => {
     if (
       !confirm(
-        "Are you sure you want to delete your account? This action is irreversible."
+        "Are you sure you want to delete your account? This action is irreversible.",
       )
     ) {
       return;

@@ -46,7 +46,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     if (!channelId) return;
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/${channelId}/get-file-limit`
+        `${API_BASE_URL}/api/${channelId}/get-file-limit`,
       );
       if (!res.ok) throw new Error("Cannot get file upload limit");
 
@@ -69,7 +69,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ userId: current_userID }),
-        }
+        },
       );
       if (!response.ok) throw new Error("Failed to check ownership");
       const data = await response.json();
@@ -104,10 +104,10 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
           prev.map((p) =>
             p.id === userId
               ? { ...p, status: status as "online" | "busy" | "offline" }
-              : p
-          )
+              : p,
+          ),
         );
-      }
+      },
     );
 
     // Listen for real-time file upload limit updates
@@ -150,7 +150,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
           body: JSON.stringify({
             fileUploadLimit: fileSizeLimit,
           }),
-        }
+        },
       );
       if (!response.ok) {
         throw new Error("Failed to update new file upload limit");
@@ -187,8 +187,8 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                     participant.status === "online"
                       ? "bg-green-500"
                       : participant.status === "busy"
-                      ? "bg-red-500"
-                      : "bg-gray-500"
+                        ? "bg-red-500"
+                        : "bg-gray-500"
                   }`}
                 />
                 <span>{participant.username}</span>
@@ -252,7 +252,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                         onClick={() =>
                           window.open(
                             `${API_BASE_URL}/api/preview/${file.fileId}`,
-                            "_blank"
+                            "_blank",
                           )
                         }
                         title="Preview"
@@ -264,7 +264,7 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
                         onClick={() =>
                           window.open(
                             `${API_BASE_URL}/api/download/${file.fileId}`,
-                            "_blank"
+                            "_blank",
                           )
                         }
                         title="Download"
