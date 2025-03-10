@@ -9,12 +9,11 @@ A real-time communication platform featuring chat rooms, direct messaging, file 
 - **Channel Management**: Create, edit, and archive chat channels
 - **File Sharing**: Upload and share files with configurable size limits per channel
 - **Rich Message Features**:
-  - Message editing and deletion
+  - Message deletion
   - @mentions and notifications
   - Emoji reactions (including custom emoji support)
   - Message history and search
 - **User Status**: Set and display online/busy/offline status
-- **Mobile Responsive**: Collapsible sidebar and responsive design
 
 ## Technologies Used
 
