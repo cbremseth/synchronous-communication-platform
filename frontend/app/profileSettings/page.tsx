@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { signOut } from "next-auth/react";
 
 // Validation schema
 const profileFormSchema = z
@@ -124,6 +125,7 @@ export function ProfileForm() {
       if (!result.success) {
         throw new Error(result.error);
       }
+      await signOut({ redirect: false });
       router.push("/signin");
     } catch (err: unknown) {
       let errorMessage = "Something went wrong";
