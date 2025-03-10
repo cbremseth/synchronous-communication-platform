@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { updateUserStatusAction } from "./actions/auth";
 import { useSocketContext } from "@/context/SocketContext";
 
+// custom component to navigate to other pages and update user status
 const NavBar = () => {
   const { user, isAuthenticated } = useAuth();
   const { data: session } = useSession();
@@ -28,6 +29,7 @@ const NavBar = () => {
     // console.log("Is Authenticated:", isAuthenticated);
   }, [user, isAuthenticated]);
 
+  // Update user status
   const handleStatusChange = async (status: string) => {
     try {
       // Prioritize userID from session because your session log shows user.userID
@@ -38,8 +40,10 @@ const NavBar = () => {
         throw new Error("User not authenticated");
       }
 
+      // Update user status in the UI using state
       setUserStatus(status);
 
+      // Update user status in the backend
       const result = await updateUserStatusAction({
         session: { user: { id: userId } },
         newStatus: status,
@@ -59,6 +63,7 @@ const NavBar = () => {
     }
   };
 
+  // Sign out user using next auth
   const handleSignOut = async () => {
     try {
       await handleStatusChange("offline");
@@ -68,6 +73,7 @@ const NavBar = () => {
     }
   };
 
+  // actual navbar component using shadcn
   return (
     <nav className="fixed top-0 right-0 p-4">
       <DropdownMenu>

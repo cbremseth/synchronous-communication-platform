@@ -84,7 +84,8 @@ export function ProfileForm() {
       if (!result.success) {
         throw new Error(result.error);
       }
-      router.refresh();
+      // if update successful redirect back to chat
+      router.push("/chat");
     } catch (err: unknown) {
       let errorMessage = "Something went wrong";
       if (err instanceof Error) {
@@ -103,7 +104,7 @@ export function ProfileForm() {
   const onDelete = async () => {
     if (
       !confirm(
-        "Are you sure you want to delete your account? This action is irreversible.",
+        "Are you sure you want to delete your account? This action is irreversible."
       )
     ) {
       return;

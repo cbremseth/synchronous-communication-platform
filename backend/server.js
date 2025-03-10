@@ -34,7 +34,7 @@ mongoose
 app.get("/", (req, res) => {
   res.send("API is running");
 });
-
+// server end point to create a user and add acount to database
 app.post("/api/signup", async (req, res) => {
   const { email, username, password } = req.body;
 
@@ -116,7 +116,7 @@ app.patch("/api/channels/:id", async (req, res) => {
     const updatedChannel = await Channel.findByIdAndUpdate(
       id,
       { $set: updates },
-      { new: true },
+      { new: true }
     )
       .populate("users", "username email")
       .populate("createdBy", "username");
@@ -146,7 +146,7 @@ app.patch("/api/channels/:id/users", async (req, res) => {
     const updatedChannel = await Channel.findByIdAndUpdate(
       id,
       { $set: { users } },
-      { new: true },
+      { new: true }
     )
       .populate("users", "username email")
       .populate("createdBy", "username");
@@ -320,7 +320,7 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"],
   },
 });
-
+// socket event for when user connects to the server handles adding them to channels and status
 io.on("connection", async (socket) => {
   console.log("a user connected:", socket.id);
 
@@ -367,7 +367,7 @@ io.on("connection", async (socket) => {
       // Send channel participants
       const channel = await Channel.findById(channelId).populate(
         "users",
-        "username status",
+        "username status"
       );
       const participants = channel.users.map((user) => ({
         id: user._id.toString(),
@@ -434,7 +434,7 @@ io.on("connection", async (socket) => {
       // Get all sockets in the channel and their user IDs
       const socketsInChannel = await io.in(channelId).fetchSockets();
       const usersInChannel = new Set(
-        socketsInChannel.map((socket) => socket.userId).filter(Boolean),
+        socketsInChannel.map((socket) => socket.userId).filter(Boolean)
       );
 
       console.log("Users currently in channel:", Array.from(usersInChannel));
@@ -457,10 +457,10 @@ io.on("connection", async (socket) => {
         const isInChannel = usersInChannel.has(userId);
         const isSender = userId === sender;
         const isMentioned = mentionedUsers.some(
-          (user) => user._id.toString() === userId,
+          (user) => user._id.toString() === userId
         );
         console.log(
-          `Checking user ${userId}: in channel? ${isInChannel}, is sender? ${isSender}, is mentioned? ${isMentioned}`,
+          `Checking user ${userId}: in channel? ${isInChannel}, is sender? ${isSender}, is mentioned? ${isMentioned}`
         );
         // Don't send regular message notification if user is in channel, is sender, or was mentioned
         return !isInChannel && !isSender && !isMentioned;
@@ -476,7 +476,7 @@ io.on("connection", async (socket) => {
           channelId,
           messageId: newMessage._id,
           sender,
-        })),
+        }))
       );
 
       if (notifications.length > 0) {
@@ -577,7 +577,7 @@ io.on("connection", async (socket) => {
       } catch (error) {
         console.log("Error handling file upload event: ", error);
       }
-    },
+    }
   );
 
   socket.on("add_reaction", async ({ messageId, emoji, userId, channelId }) => {
@@ -626,6 +626,7 @@ io.on("connection", async (socket) => {
   });
 });
 
+// check if the server was set up properly
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
@@ -714,7 +715,7 @@ app.patch("/api/notifications/read", async (req, res) => {
 
     await Notification.updateMany(
       { _id: { $in: notificationIds } },
-      { $set: { read: true } },
+      { $set: { read: true } }
     );
 
     res.json({ message: "Notifications marked as read" });
@@ -771,7 +772,7 @@ app.post("/api/upload", upload.single("file"), async (req, res) => {
   const fileUploadLimit_config = channel.fileUpLoadLimit || 5 * 1024; // Default 5KB in bytes
   console.log(
     `current limit of channel ${channelId}: `,
-    fileUploadLimit_config,
+    fileUploadLimit_config
   );
 
   // Check if file size exceeds the channel's limit
@@ -922,7 +923,7 @@ app.post("/api/reactionDetails/:messageId", async (req, res) => {
     const reactionDetails = {};
 
     console.log(
-      "Emoji data with decoded names (static files/dynamic files from DB:",
+      "Emoji data with decoded names (static files/dynamic files from DB:"
     );
     // Fetch user details for all reactions
     for (const [
@@ -931,7 +932,7 @@ app.post("/api/reactionDetails/:messageId", async (req, res) => {
     ] of message.reactions.entries()) {
       const userObjects = await User.find(
         { _id: { $in: users } },
-        { username: 1, _id: 0 },
+        { username: 1, _id: 0 }
       );
 
       // Decode emoji filename (if it's encoded)
