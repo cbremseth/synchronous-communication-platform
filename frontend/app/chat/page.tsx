@@ -120,7 +120,15 @@ export default function Chat({
       if (!user) return;
       const generalChannel = await getOrCreateGeneralChannel(user.userID);
       console.log("generalChannel", generalChannel);
-      setCurrentChannelId(generalChannel._id);
+      if (
+        generalChannel &&
+        typeof generalChannel === "object" &&
+        "_id" in generalChannel
+      ) {
+        setCurrentChannelId(generalChannel._id);
+      } else {
+        console.error("Invalid general channel format:", generalChannel);
+      }
     } catch (error) {
       console.error("Error fetching general channel:", error);
     }
