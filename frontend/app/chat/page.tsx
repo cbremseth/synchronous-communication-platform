@@ -109,9 +109,10 @@ export default function Chat({
   const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [showPicker, setShowPicker] = useState(false);
+
   const pickerRef = useRef<HTMLDivElement>(null);
   const socket = useSocketContext();
-  // const [channels, setChannels] = useState([]);
+  const [, setChannels] = useState([]);
 
   // Add function to fetch general channel
   const fetchGeneralChannel = useCallback(async () => {
