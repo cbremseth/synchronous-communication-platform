@@ -52,7 +52,45 @@ A real-time communication platform featuring chat rooms, direct messaging, file 
 
 2. Install dependencies:
 
+   ```bash
+   # Install dependencies for frontend
+   cd frontend
+   pnpm install
+
+
+   # Install dependencies for backend
+   cd ../backend
+   npm install
+   ```
+
 3. Configure environment variables:
+
+   ```bash
+   # Create a .env file in the project root and complete the template using your settings
+
+   # Node Environment
+   APP_ENV=development
+
+   # MongoDB
+   MONGO_USER=
+   MONGO_PASSWORD=
+
+   # Backend
+   BACKEND_PORT=5001
+   MONGODB_URI=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:27017
+
+   # Frontend
+   FRONTEND_PORT=3000
+   NEXT_PUBLIC_API_URL=http://backend:5001
+
+   NEXT_PUBLIC_SOCKET_URL=http://backend:5001
+
+   # Development Environment
+   NEXT_TELEMETRY_DISABLED=1
+
+   NEXTAUTH_URL=http://localhost:3000/
+   NEXTAUTH_SECRET=
+   ```
 
 4. Start development servers:
 
