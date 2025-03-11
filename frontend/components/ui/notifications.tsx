@@ -133,13 +133,17 @@ export default function Notifications() {
             <p className="text-sm text-white">
               {notification.type === "mention" ? (
                 <span>
-                  <strong>{notification.sender.username}</strong> mentioned you
-                  in a message
+                  <strong>
+                    {notification.sender?.username || "Deleted User"}
+                  </strong>{" "}
+                  mentioned you in a message
                 </span>
               ) : (
                 <span>
                   New message from{" "}
-                  <strong>{notification.sender.username}</strong>
+                  <strong>
+                    {notification.sender?.username || "Deleted User"}
+                  </strong>
                 </span>
               )}
             </p>
