@@ -34,7 +34,7 @@ mongoose
 app.get("/", (req, res) => {
   res.send("API is running");
 });
-
+// server end point to create a user and add acount to database
 app.post("/api/signup", async (req, res) => {
   const { email, username, password } = req.body;
 
@@ -320,7 +320,7 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"],
   },
 });
-
+// socket event for when user connects to the server handles adding them to channels and status
 io.on("connection", async (socket) => {
   console.log("a user connected:", socket.id);
 
@@ -626,6 +626,7 @@ io.on("connection", async (socket) => {
   });
 });
 
+// check if the server was set up properly
 httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

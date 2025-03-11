@@ -179,7 +179,7 @@ export async function deleteAccountAction({
     };
   }
 }
-
+// server side action to update user status
 export async function updateUserStatusAction({
   session,
   newStatus,
