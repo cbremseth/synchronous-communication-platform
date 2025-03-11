@@ -37,7 +37,7 @@ export default function Notifications() {
     if (!user?.userID) return;
     try {
       const response = await fetch(
-        `http://localhost:5001/api/notifications?userId=${user.userID}`
+        `http://localhost:5001/api/notifications?userId=${user.userID}`,
       );
       if (!response.ok) throw new Error("Failed to fetch notifications");
       const data = await response.json();
@@ -93,14 +93,14 @@ export default function Notifications() {
 
       // Update local state immediately
       setNotifications((prev) =>
-        prev.filter((n) => n._id !== notification._id)
+        prev.filter((n) => n._id !== notification._id),
       );
 
       // Navigate to the channel with message ID in hash
       if (notification.messageId) {
         // Use replace instead of push to ensure the URL updates properly
         router.replace(
-          `/chat/${notification.channelId}?highlight=${notification.messageId}`
+          `/chat/${notification.channelId}?highlight=${notification.messageId}`,
         );
       } else {
         router.replace(`/chat/${notification.channelId}`);
