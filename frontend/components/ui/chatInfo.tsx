@@ -84,9 +84,11 @@ const ChatInfo: React.FC<ChatInfoProps> = ({
     getChannelFileUploadLimit();
   }, [checkOwnership, getChannelFileUploadLimit]);
 
+  // effect hook to listen for channel participants and status updates
   useEffect(() => {
     if (!socket) return;
 
+    // update channel statuses with someone joins
     socket.emit("join_channel", channelId);
 
     socket.on("channel_participants", (channelParticipants: Participant[]) => {

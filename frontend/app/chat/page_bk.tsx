@@ -109,10 +109,8 @@ export default function Chat({
   const messageRefs = useRef<{ [key: string]: HTMLDivElement }>({});
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [showPicker, setShowPicker] = useState(false);
-
   const pickerRef = useRef<HTMLDivElement>(null);
   const socket = useSocketContext();
-  const [, setChannels] = useState([]);
 
   // Add function to fetch general channel
   const fetchGeneralChannel = useCallback(async () => {
@@ -125,22 +123,6 @@ export default function Chat({
       console.error("Error fetching general channel:", error);
     }
   }, [user]);
-
-  // Fetch initial channels from API
-  const fetchChannels = async () => {
-    if (!user.userId) {
-      console.log("User Id is required to fetch channels.");
-      return;
-    }
-    const res = await fetch(
-      `${API_BASE_URL}/api/channels?userId=${user.userId}`,
-    );
-    if (!res.ok) {
-      throw new Error(`Error: ${res.status} ${res.statusText}`);
-    }
-    const data = await res.json();
-    setChannels(data);
-  };
 
   useEffect(() => {
     if (!channelId && roomName === "General Chat") {
@@ -398,24 +380,12 @@ export default function Chat({
       );
     });
 
-    // Fetch channels initially
-    fetchChannels();
-
-    const handleChannelUpdate = (updatedChannels) => {
-      console.log("Received updated channels:", updatedChannels);
-      setChannels(updatedChannels); // Update state dynamically
-    };
-
-    // Listen for channel updates from the server
-    socket?.on("channelUpdated", handleChannelUpdate);
-
     // Cleanup function
     return () => {
       socket?.off("connect");
       socket?.off("message");
       socket?.off("message_history");
       socket?.off("message_deleted");
-      socket?.off("channelUpdated", handleChannelUpdate);
     };
   }, [user, isAuthenticated, isLoading, currentChannelId, router, socket]);
 
