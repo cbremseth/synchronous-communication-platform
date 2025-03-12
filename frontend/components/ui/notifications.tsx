@@ -35,7 +35,7 @@ export default function Notifications() {
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/notifications?userId=${user.userID}`
+        `${API_BASE_URL}/api/notifications?userId=${user.userID}`,
       );
 
       if (!response.ok) {
@@ -108,13 +108,13 @@ export default function Notifications() {
 
       // Remove the notification from our local state
       setNotifications((prev) =>
-        prev.filter((n) => n._id !== notification._id)
+        prev.filter((n) => n._id !== notification._id),
       );
 
       // Navigate to the relevant channel, highlighting the message if applicable
       if (notification.messageId) {
         router.replace(
-          `/chat/${notification.channelId}?highlight=${notification.messageId}`
+          `/chat/${notification.channelId}?highlight=${notification.messageId}`,
         );
       } else {
         router.replace(`/chat/${notification.channelId}`);
@@ -141,8 +141,8 @@ export default function Notifications() {
             notification.sender?.username
               ? notification.sender.username
               : typeof notification.sender === "string"
-              ? notification.sender
-              : "Deleted User";
+                ? notification.sender
+                : "Deleted User";
 
           return (
             <div
