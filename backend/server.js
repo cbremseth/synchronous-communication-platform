@@ -1067,10 +1067,15 @@ app.get("/api/custom-emojis", async (req, res) => {
         .json({ error: "No image found in uploaded files" });
     }
 
+    const apiBaseUrl =
+      process.env.APP_ENV === "production"
+        ? process.env.NEXT_PUBLIC_API_URL
+        : "http://localhost:5001";
+
     const emojis = imageFiles.map((file) => ({
       id: file._id.toString(), // Convert ObjectId to string
       name: file.filename,
-      src: `${process.env.NEXT_PUBLIC_API_URL}/api/emojis/${file._id}`, // URL to serve image
+      src: `${apiBaseUrl}/api/emojis/${file._id}`, // URL to serve image
     }));
 
     res.json({ emojis });

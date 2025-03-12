@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import Chat from "../page";
 import { useParams } from "next/navigation";
 
+const API_BASE_URL =
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:5001"
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+
 export default function ChannelPage() {
   const [channelName, setChannelName] = useState("Loading...");
   const params = useParams();
@@ -13,7 +18,7 @@ export default function ChannelPage() {
     const fetchChannelDetails = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/channels/${channelId}`,
+          `${API_BASE_URL}/api/channels/${channelId}`,
         );
         if (!response.ok) throw new Error("Failed to fetch channel");
         const channel = await response.json();
