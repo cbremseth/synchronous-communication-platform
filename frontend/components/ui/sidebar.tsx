@@ -80,7 +80,7 @@ export default function Sidebar() {
 
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/channels?userId=${user.userID}`,
+          `${API_BASE_URL}/api/channels?userId=${user.userID}`,
         );
         if (!response.ok) throw new Error("Failed to fetch channels");
 
