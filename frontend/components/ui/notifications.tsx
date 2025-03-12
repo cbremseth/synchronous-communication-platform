@@ -1,19 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { Manager } from "socket.io-client";
+import { useSocketContext } from "@/context/SocketContext";
 
 interface Notification {
   _id: string;
   type: "mention" | "message" | "channel_invite";
   channelId: string;
   messageId?: string;
-  sender: {
-    username: string;
-  };
+  // sender can either be an object with a username or a string
+  sender: { username: string } | string;
   content?: string;
   read: boolean;
   timestamp: string;
@@ -24,68 +23,79 @@ const API_BASE_URL =
     ? "http://localhost:5001"
     : process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
-// Create a singleton socket instance
-const manager = new Manager(`${API_BASE_URL}`, {
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-});
-const socket = manager.socket("/");
-
 export default function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const router = useRouter();
   const { user } = useAuth();
+  const socket = useSocketContext();
 
-  // Function to fetch notifications
-  const fetchNotifications = async () => {
+  // Standard function to fetch notifications
+  const fetchNotifications = useCallback(async () => {
     if (!user?.userID) return;
+
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/notifications?userId=${user.userID}`,
+        `${API_BASE_URL}/api/notifications?userId=${user.userID}`
       );
-      if (!response.ok) throw new Error("Failed to fetch notifications");
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch notifications");
+      }
+
       const data = await response.json();
       setNotifications(data);
     } catch (error) {
       console.error("Error fetching notifications:", error);
     }
-  };
+  }, [user?.userID]);
 
+  // Handle socket connection and notification events
   useEffect(() => {
-    if (!user?.userID) return;
+    // Only proceed if we have both user and socket
+    if (!user?.userID || !socket) return;
 
-    // Ensure socket is connected
-    if (!socket.connected) {
-      socket.connect();
-    }
-
-    // Join user-specific room for notifications
-    socket.emit("join_user", user.userID);
-
-    // Fetch initial notifications
-    fetchNotifications();
-
-    // Listen for new notifications
+    // Define a handler for new notifications
     const handleNewNotification = (notification: Notification) => {
       console.log("Received new notification:", notification);
+      // Add the new notification to the top of the list, avoiding duplicates
       setNotifications((prev) => [
         notification,
         ...prev.filter((n) => n._id !== notification._id),
       ]);
     };
 
-    socket.on("notification", handleNewNotification);
-
-    // Cleanup function
-    return () => {
-      socket.off("notification", handleNewNotification);
+    // Define what happens when socket connects
+    const handleConnect = () => {
+      console.log("Notifications: Socket connected");
+      // Join the user's personal room to receive their notifications
+      socket.emit("join_user", user.userID);
+      // Fetch existing notifications
+      fetchNotifications();
     };
-  }, [user]);
 
+    // Set up socket event listeners
+    socket.on("notification", handleNewNotification);
+    socket.on("connect", handleConnect);
+
+    // If socket is already connected, join room and fetch notifications immediately
+    if (socket.connected) {
+      handleConnect();
+    }
+
+    // Cleanup function to prevent memory leaks and duplicate listeners
+    return () => {
+      console.log("Notifications: Cleaning up socket listeners");
+      // Remove all event listeners we added
+      socket.off("notification", handleNewNotification);
+      socket.off("connect", handleConnect);
+      // Note: We don't disconnect the socket here as it's managed by the SocketContext
+    };
+  }, [user?.userID, socket, fetchNotifications]);
+
+  // Handle clicking on a notification
   const handleNotificationClick = async (notification: Notification) => {
     try {
-      // Mark notification as read
+      // Mark the notification as read in the backend
       await fetch(`${API_BASE_URL}/api/notifications/read`, {
         method: "PATCH",
         headers: {
@@ -96,27 +106,27 @@ export default function Notifications() {
         }),
       });
 
-      // Update local state immediately
+      // Remove the notification from our local state
       setNotifications((prev) =>
-        prev.filter((n) => n._id !== notification._id),
+        prev.filter((n) => n._id !== notification._id)
       );
 
-      // Navigate to the channel with message ID in hash
+      // Navigate to the relevant channel, highlighting the message if applicable
       if (notification.messageId) {
-        // Use replace instead of push to ensure the URL updates properly
         router.replace(
-          `/chat/${notification.channelId}?highlight=${notification.messageId}`,
+          `/chat/${notification.channelId}?highlight=${notification.messageId}`
         );
       } else {
         router.replace(`/chat/${notification.channelId}`);
       }
     } catch (error) {
       console.error("Error marking notification as read:", error);
-      // Revert the local state change if the API call failed
+      // Refresh notifications if there was an error
       fetchNotifications();
     }
   };
 
+  // Filter for unread notifications only
   const unreadNotifications = notifications.filter((n) => !n.read);
 
   return (
@@ -124,36 +134,41 @@ export default function Notifications() {
       {unreadNotifications.length === 0 ? (
         <p className="text-sm text-gray-400">No new notifications</p>
       ) : (
-        unreadNotifications.map((notification) => (
-          <div
-            key={notification._id}
-            className="p-2 mb-2 rounded cursor-pointer bg-violet-800 hover:bg-violet-700 transition-colors duration-200"
-            onClick={() => handleNotificationClick(notification)}
-          >
-            <p className="text-sm text-white">
-              {notification.type === "mention" ? (
-                <span>
-                  <strong>
-                    {notification.sender?.username || "Deleted User"}
-                  </strong>{" "}
-                  mentioned you in a message
-                </span>
-              ) : (
-                <span>
-                  New message from{" "}
-                  <strong>
-                    {notification.sender?.username || "Deleted User"}
-                  </strong>
-                </span>
-              )}
-            </p>
-            {notification.content && (
-              <p className="text-xs text-gray-300 mt-1">
-                {notification.content}
+        unreadNotifications.map((notification) => {
+          // Handle different sender formats safely
+          const senderName =
+            typeof notification.sender === "object" &&
+            notification.sender?.username
+              ? notification.sender.username
+              : typeof notification.sender === "string"
+              ? notification.sender
+              : "Deleted User";
+
+          return (
+            <div
+              key={notification._id}
+              className="p-2 mb-2 rounded cursor-pointer bg-violet-800 hover:bg-violet-700 transition-colors duration-200"
+              onClick={() => handleNotificationClick(notification)}
+            >
+              <p className="text-sm text-white">
+                {notification.type === "mention" ? (
+                  <span>
+                    <strong>{senderName}</strong> mentioned you in a message
+                  </span>
+                ) : (
+                  <span>
+                    New message from <strong>{senderName}</strong>
+                  </span>
+                )}
               </p>
-            )}
-          </div>
-        ))
+              {notification.content && (
+                <p className="text-xs text-gray-300 mt-1">
+                  {notification.content}
+                </p>
+              )}
+            </div>
+          );
+        })
       )}
     </ScrollArea>
   );
