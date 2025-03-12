@@ -29,13 +29,13 @@ MONGODB_URI=mongodb://\${MONGO_USER}:\${MONGO_PASSWORD}@mongodb:27017/
 
 # Frontend
 FRONTEND_PORT=3000
-NEXT_PUBLIC_API_URL=http://${SERVER_IP}/api
+NEXT_PUBLIC_API_URL=http://${SERVER_IP}:5001/api
 
 # Development Environment
 NEXT_TELEMETRY_DISABLED=1
 
 # NextAuth
-NEXTAUTH_URL=http://${SERVER_IP}
+NEXTAUTH_URL=http://${SERVER_IP}:3000
 NEXTAUTH_SECRET="e9HI2RipS2McD4jwPjSoWvuhrbifIiC1NQk3/PHfK08="
 EOL
 }
@@ -94,55 +94,6 @@ if ! command -v docker-compose &>/dev/null; then
     echo "[INFO] Standalone docker-compose installed successfully."
 fi
 
-# Install and configure Nginx
-if ! command -v nginx &>/dev/null; then
-    echo "[INFO] Installing Nginx..."
-    apt-get update
-    apt-get install -y nginx || error_exit "Failed to install Nginx."
-fi
-
-# Configure Nginx
-echo "[INFO] Configuring Nginx..."
-cat > /etc/nginx/sites-available/default << EOL
-server {
-    listen 80;
-    listen [::]:80;
-
-    # Frontend (Next.js)
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # Backend (Node.js)
-    location /api {
-        proxy_pass http://localhost:5001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}
-EOL
-
-# Enable the site and remove any other configurations
-rm -f /etc/nginx/sites-enabled/*
-ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default || error_exit "Failed to enable Nginx site."
-
-# Test Nginx configuration
-nginx -t || error_exit "Nginx configuration test failed."
-
 # Clone the repository
 if [ -d "$CLONE_DIR" ]; then
     echo "[INFO] Removing existing repository..."
@@ -163,8 +114,8 @@ if [ -f "$PARENT_DIR/.env" ]; then
     cp "$PARENT_DIR/.env" ".env" || error_exit "Failed to copy .env"
 
     # Update the IP-specific variables in the existing .env
-    sed -i "s|^NEXTAUTH_URL=.*|NEXTAUTH_URL=http://${SERVER_IP}|g" .env
-    sed -i "s|^NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=http://${SERVER_IP}/api|g" .env
+    sed -i "s|^NEXTAUTH_URL=.*|NEXTAUTH_URL=http://${SERVER_IP}:3000|g" .env
+    sed -i "s|^NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=http://${SERVER_IP}:5001/api|g" .env
 else
     echo "[INFO] Creating default environment file..."
     create_default_env
@@ -196,13 +147,7 @@ fi
 # Additional wait to ensure services are fully initialized
 sleep 10
 
-# Restart Nginx to apply changes
-echo "[INFO] Restarting Nginx..."
-systemctl restart nginx || error_exit "Failed to restart Nginx."
-
-# Check container logs
-echo "[INFO] Checking container logs..."
-docker-compose logs
-
 echo "[SUCCESS] Project deployed successfully!"
-echo "You can now access your application at: http://${SERVER_IP}"
+echo "Frontend URL: http://${SERVER_IP}:3000"
+echo "Backend API URL: http://${SERVER_IP}:5001/api"
+echo "WebSocket URL: http://${SERVER_IP}:5001"
