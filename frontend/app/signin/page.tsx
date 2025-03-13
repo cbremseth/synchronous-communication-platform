@@ -176,6 +176,8 @@ export function LoginForm() {
           </form>
         </Form>
 
+	{/*
+
         <Button
           type="button"
           variant="blue"
@@ -186,6 +188,8 @@ export function LoginForm() {
         >
           Sign in with Google
         </Button>
+	
+	*/}
 
         <p className="text-center text-sm text-gray-600">
           Don&apos;t have an account?{" "}

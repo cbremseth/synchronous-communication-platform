@@ -66,12 +66,12 @@ export default function SearchBar({
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                      <Link
-                        href={`/profile/${user._id}`}
+                      <div
+                       /* href={`/profile/${user._id}`}*/
                         className="text-blue-500 hover:underline font-semibold"
                       >
                         {user.username}
-                      </Link>
+                      </div>
                       <p className="text-xs text-gray-500">{user.email}</p>
                     </div>
                   </li>
